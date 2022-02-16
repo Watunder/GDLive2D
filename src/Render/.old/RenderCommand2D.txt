@@ -1,0 +1,17 @@
+class RenderCommand2D
+{
+	public:
+		RenderCommand2D();
+		~RenderCommand2D();
+
+		void Reset();
+		void DrawSprites(godot::Node2D* parent);
+		void DrawModel(godot::Node2D* parent, godot::RID mesh);
+
+		godot::RID GetCanvasItem() { return m_canvasItem; }
+		godot::RID GetMaterial() { return m_material; }
+
+	private:
+		godot::RID m_canvasItem;
+		godot::RID m_material;
+};
