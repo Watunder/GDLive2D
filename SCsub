@@ -51,6 +51,7 @@ module_obj = []
 
 env_live2d.add_source_files(module_obj, "*.cpp")
 env_live2d.add_source_files(module_obj, "src/*.cpp")
+env_live2d.add_source_files(module_obj, "src/editor/*.cpp")
 
 env.modules_sources += module_obj
 

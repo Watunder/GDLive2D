@@ -20,6 +20,16 @@ using namespace godot;
 #include "src/live2d_moc_file.h"
 #include "src/live2d_model_instance.h"
 
+#ifdef TOOLS_ENABLED
+#include "src/editor/live2d_editor_plugin.h"
+#include "src/editor/live2d_model_importer.h"
+#ifdef GDEXTENSION
+#include <godot_cpp/classes/editor_plugin_registration.hpp>
+#elif defined(GODOT_MODULE)
+#include "editor/plugins/editor_plugin.h"
+#endif
+#endif
+
 #include <CubismFramework.hpp>
 
 static CubismAllocator _cubism_allocator;
@@ -72,6 +82,14 @@ void initialize_live2d_module(ModuleInitializationLevel p_level) {
 		ResourceLoader::add_resource_format_loader(resource_format_loader_live2d_model_data);
 #endif
 	}
+
+#ifdef TOOLS_ENABLED
+	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
+		GDREGISTER_CLASS(Live2DEditorPlugin);
+		GDREGISTER_CLASS(Live2DModelImporter);
+		EditorPlugins::add_by_type<Live2DEditorPlugin>();
+	}
+#endif
 }
 
 void uninitialize_live2d_module(ModuleInitializationLevel p_level) {
@@ -86,6 +104,14 @@ void uninitialize_live2d_module(ModuleInitializationLevel p_level) {
 #endif
 		resource_format_loader_live2d_model_data.unref();
 	}
+
+#ifdef TOOLS_ENABLED
+	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
+#ifdef GDEXTENSION
+		EditorPlugins::remove_by_type<Live2DEditorPlugin>();
+#endif
+	}
+#endif
 }
 
 #ifdef GDEXTENSION

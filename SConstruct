@@ -52,6 +52,7 @@ link_cubism_core_library(env, thirdparty_cubism_core_dir)
 
 sources += Glob("*.cpp")
 sources += Glob("src/*.cpp")
+sources += Glob("src/editor/*.cpp")
 
 library = env.SharedLibrary(
     "addons/gdlive2d/bin/libgdlive2d{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
