@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+
+Import("env")
+Import("env_modules")
+
+import os
+
+from gdlive2d_methods import link_cubism_core_library
+
+CUBISM_FRAMEWORK_SRC_PATHS = (
+    ".",
+    "Effect",
+    "Id",
+    "Math",
+    "Model",
+    "Motion",
+    "Physics",
+    "Rendering",
+    "Type",
+    "Utils",
+)
+
+env_live2d = env_modules.Clone()
+
+thirdparty_cubism_core_dir = os.path.join(env["cubism_sdk"], "Core")
+thirdparty_cubism_framework_src_dir = os.path.join(env["cubism_sdk"], "Framework", "src")
+
+env_live2d.Prepend(CPPPATH=[os.path.join(thirdparty_cubism_core_dir, "include")])
+env_live2d.Prepend(CPPPATH=[thirdparty_cubism_framework_src_dir])
+
+# Thirdparty source files
+
+thirdparty_obj = []
+
+thirdparty_cubism_framework_sources = [
+    file
+    for path in CUBISM_FRAMEWORK_SRC_PATHS
+    for file in Glob(os.path.join(thirdparty_cubism_framework_src_dir, path, "*.cpp"))
+]
+
+env_cubism_framework = env_live2d.Clone()
+env_cubism_framework.disable_warnings()
+env_cubism_framework.add_source_files(thirdparty_obj, thirdparty_cubism_framework_sources)
+env.modules_sources += thirdparty_obj
+
+link_cubism_core_library(env, thirdparty_cubism_core_dir)
+
+# Godot source files
+
+module_obj = []
+
+env_live2d.add_source_files(module_obj, "*.cpp")
+env_live2d.add_source_files(module_obj, "src/*.cpp")
+
+env.modules_sources += module_obj
+
+env.Depends(module_obj, thirdparty_obj)
