@@ -149,7 +149,7 @@ Error Live2DModelImporter::import(ResourceUID::ID p_source_id, const String &p_s
 	}
 
 	Live2DModelInstance *instance = memnew(Live2DModelInstance);
-	instance->set_name(p_source_file.get_base_dir().get_basename());
+	instance->set_name(p_source_file.get_base_dir().get_file());
 	instance->set_model_entry(p_source_file);
 
 	Ref<PackedScene> packed;
