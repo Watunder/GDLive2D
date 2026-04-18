@@ -1,0 +1,27 @@
+[tool.mypy]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["config", "gdlive2d_methods"]
+disable_error_code = ["no-untyped-def", "no-untyped-call"]
+
+[tool.ruff]
+extend-include = ["SConstruct", "SCsub"]
+line-length = 120
+target-version = "py38"
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[tool.ruff.lint.per-file-ignores]
+"SConstruct" = ["F821"]
+"SCsub" = ["F821", "E402"]
+
+[tool.codespell]
+enable-colors = true
+quiet-level = 3
+skip = "lib/godot-cpp,*.svg,.git"
+ignore-words-list = [
+	"cancelled",
+	"thirdparty",
+]
