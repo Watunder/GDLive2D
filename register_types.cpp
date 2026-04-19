@@ -35,7 +35,7 @@ using namespace godot;
 static CubismAllocator _cubism_allocator;
 static Csm::CubismFramework::Option _cubism_option;
 
-static Ref<ResourceFormatLoaderLive2DModelData> resource_format_loader_live2d_model_data;
+static Ref<ResourceFormatLoaderLive2DMocFile> resource_format_loader_live2d_moc_file;
 
 void initialize_live2d_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
@@ -71,15 +71,15 @@ void initialize_live2d_module(ModuleInitializationLevel p_level) {
 		Csm::CubismFramework::Initialize();
 
 		GDREGISTER_CLASS(Live2DMocFile);
-		GDREGISTER_CLASS(ResourceFormatLoaderLive2DModelData);
+		GDREGISTER_CLASS(ResourceFormatLoaderLive2DMocFile);
 
 		GDREGISTER_CLASS(Live2DModelInstance);
 
-		resource_format_loader_live2d_model_data.instantiate();
+		resource_format_loader_live2d_moc_file.instantiate();
 #ifdef GDEXTENSION
-		ResourceLoader::get_singleton()->add_resource_format_loader(resource_format_loader_live2d_model_data);
+		ResourceLoader::get_singleton()->add_resource_format_loader(resource_format_loader_live2d_moc_file);
 #elif defined(GODOT_MODULE)
-		ResourceLoader::add_resource_format_loader(resource_format_loader_live2d_model_data);
+		ResourceLoader::add_resource_format_loader(resource_format_loader_live2d_moc_file);
 #endif
 	}
 
@@ -98,11 +98,11 @@ void uninitialize_live2d_module(ModuleInitializationLevel p_level) {
 		Csm::CubismFramework::Dispose();
 
 #ifdef GDEXTENSION
-		ResourceLoader::get_singleton()->remove_resource_format_loader(resource_format_loader_live2d_model_data);
+		ResourceLoader::get_singleton()->remove_resource_format_loader(resource_format_loader_live2d_moc_file);
 #elif defined(GODOT_MODULE)
-		ResourceLoader::remove_resource_format_loader(resource_format_loader_live2d_model_data);
+		ResourceLoader::remove_resource_format_loader(resource_format_loader_live2d_moc_file);
 #endif
-		resource_format_loader_live2d_model_data.unref();
+		resource_format_loader_live2d_moc_file.unref();
 	}
 
 #ifdef TOOLS_ENABLED

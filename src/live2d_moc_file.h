@@ -31,8 +31,8 @@ public:
 
 /**************************************************************************/
 
-class ResourceFormatLoaderLive2DModelData : public ResourceFormatLoader {
-	GDCLASS(ResourceFormatLoaderLive2DModelData, ResourceFormatLoader);
+class ResourceFormatLoaderLive2DMocFile : public ResourceFormatLoader {
+	GDCLASS(ResourceFormatLoaderLive2DMocFile, ResourceFormatLoader);
 
 protected:
 	static void _bind_methods() {}
