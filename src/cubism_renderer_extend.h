@@ -30,24 +30,16 @@ private:
 	void BuildDrawableMaskPass(Csm::CubismModel *model);
 	Csm::csmBool IsMaskedVertexVisible(Csm::csmInt32 drawableIndex, Csm::csmFloat32 x, Csm::csmFloat32 y) const;
 
-	Csm::csmUint64 _drawableItemBaseId = 0ULL;
-	Csm::csmVector<Csm::csmUint64> _drawableItemIds;
-
 	Csm::csmVector<Csm::csmInt32> _sortedObjectsIndexList;
 	Csm::csmVector<Csm::csmInt32> _sortedObjectsTypeList;
-
-	void EnsureDrawableItems(Csm::csmUint64 drawableItemBaseId, Csm::csmInt32 drawableCount);
-	Csm::csmUint64 GetDrawableItemId(Csm::csmInt32 drawableIndex) const;
-	void ClearDrawableItems();
-	void FreeDrawableItems();
 
 public:
 	virtual void Initialize(Csm::CubismModel *model) override;
 	virtual void Initialize(Csm::CubismModel *model, Csm::csmInt32 maskBufferCount) override;
 
 	void SetupUserModel(Csm::CubismUserModel *userModel);
-	void RenderDrawable(Csm::csmInt32 objectIndex);
-	void RenderOffscreen(Csm::csmInt32 objectIndex);
+	void RenderDrawable(Csm::csmInt32 drawableIndex);
+	void RenderOffscreen(Csm::csmInt32 offscreenIndex);
 
 protected:
 	virtual void DoDrawModel() override;

@@ -22,14 +22,6 @@ static RID GetRIDFromId(Csm::csmUint64 id) {
 #endif
 }
 
-static void RSFreeRID(const RID &id) {
-#ifdef GDEXTENSION
-	RenderingServer::get_singleton()->free_rid(id);
-#elif defined(GODOT_MODULE)
-	RenderingServer::get_singleton()->free(id);
-#endif
-}
-
 /**************************************************************************/
 
 static Csm::csmFloat32 ApplyScreenColor(Csm::csmFloat32 baseValue, Csm::csmFloat32 screenValue) {
@@ -151,62 +143,6 @@ Csm::csmBool CubismRendererExtend::IsMaskedVertexVisible(Csm::csmInt32 drawableI
 	return insideMask;
 }
 
-void CubismRendererExtend::FreeDrawableItems() {
-	for (Csm::csmUint32 i = 0; i < _drawableItemIds.GetSize(); ++i) {
-		if (_drawableItemIds[i] != 0ULL) {
-			RSFreeRID(GetRIDFromId(_drawableItemIds[i]));
-		}
-	}
-	_drawableItemIds.Clear();
-	_drawableItemBaseId = 0ULL;
-}
-
-void CubismRendererExtend::EnsureDrawableItems(Csm::csmUint64 drawableItemBaseId, Csm::csmInt32 drawableCount) {
-	if (drawableItemBaseId == 0ULL) {
-		return;
-	}
-	if (drawableCount <= 0) {
-		FreeDrawableItems();
-		return;
-	}
-	if (_drawableItemBaseId == drawableItemBaseId && static_cast<Csm::csmInt32>(_drawableItemIds.GetSize()) == drawableCount) {
-		return;
-	}
-
-	FreeDrawableItems();
-
-	RID parent = GetRIDFromId(drawableItemBaseId);
-	ERR_FAIL_COND(!parent.is_valid());
-
-	_drawableItemIds.Resize(drawableCount, 0ULL);
-	for (Csm::csmInt32 i = 0; i < drawableCount; ++i) {
-		RID child = RenderingServer::get_singleton()->canvas_item_create();
-		RenderingServer::get_singleton()->canvas_item_set_parent(child, parent);
-		RenderingServer::get_singleton()->canvas_item_set_z_as_relative_to_parent(child, false);
-		_drawableItemIds[i] = child.get_id();
-	}
-
-	_drawableItemBaseId = drawableItemBaseId;
-}
-
-Csm::csmUint64 CubismRendererExtend::GetDrawableItemId(Csm::csmInt32 drawableIndex) const {
-	if (drawableIndex < 0 || drawableIndex >= static_cast<Csm::csmInt32>(_drawableItemIds.GetSize())) {
-		return 0ULL;
-	}
-	return _drawableItemIds[drawableIndex];
-}
-
-void CubismRendererExtend::ClearDrawableItems() {
-	RenderingServer *rs = RenderingServer::get_singleton();
-	ERR_FAIL_COND(!rs);
-
-	for (Csm::csmUint32 i = 0; i < _drawableItemIds.GetSize(); ++i) {
-		if (_drawableItemIds[i] != 0ULL) {
-			rs->canvas_item_clear(GetRIDFromId(_drawableItemIds[i]));
-		}
-	}
-}
-
 void CubismRendererExtend::Initialize(Csm::CubismModel *model) {
 	Csm::Rendering::CubismRenderer::Initialize(model, 1);
 }
@@ -219,30 +155,30 @@ void CubismRendererExtend::SetupUserModel(Csm::CubismUserModel *userModel) {
 	_userModel = userModel;
 }
 
-void CubismRendererExtend::RenderDrawable(Csm::csmInt32 objectIndex) {
+void CubismRendererExtend::RenderDrawable(Csm::csmInt32 drawableIndex) {
 	Csm::CubismModel *model = GetModel();
 	ERR_FAIL_COND(!model);
 
-	if (!model->GetDrawableDynamicFlagIsVisible(objectIndex)) {
+	if (!model->GetDrawableDynamicFlagIsVisible(drawableIndex)) {
 		return;
 	}
 
-	const Csm::csmInt32 vcount = model->GetDrawableVertexCount(objectIndex);
-	const Csm::csmInt32 icount = model->GetDrawableVertexIndexCount(objectIndex);
+	const Csm::csmInt32 vcount = model->GetDrawableVertexCount(drawableIndex);
+	const Csm::csmInt32 icount = model->GetDrawableVertexIndexCount(drawableIndex);
 	if (vcount <= 0 || icount <= 0) {
 		return;
 	}
 
-	const Csm::csmBlendMode blendMode = model->GetDrawableBlendModeType(objectIndex);
+	const Csm::csmBlendMode blendMode = model->GetDrawableBlendModeType(drawableIndex);
 	if (blendMode.GetColorBlendType() != Live2D::Cubism::Core::csmColorBlendType_Normal ||
 			blendMode.GetAlphaBlendType() != Live2D::Cubism::Core::csmAlphaBlendType_Over) {
 		WARN_PRINT_ONCE_ED("[GDLive2D] The blend mode of drawable is not implemented right now.");
 		return;
 	}
 
-	const Csm::csmFloat32 *vertices = model->GetDrawableVertices(objectIndex);
-	const Live2D::Cubism::Core::csmVector2 *vertexUvs = model->GetDrawableVertexUvs(objectIndex);
-	const Csm::csmUint16 *vertexIndices = model->GetDrawableVertexIndices(objectIndex);
+	const Csm::csmFloat32 *vertices = model->GetDrawableVertices(drawableIndex);
+	const Live2D::Cubism::Core::csmVector2 *vertexUvs = model->GetDrawableVertexUvs(drawableIndex);
+	const Csm::csmUint16 *vertexIndices = model->GetDrawableVertexIndices(drawableIndex);
 	ERR_FAIL_COND(!vertices || !vertexUvs || !vertexIndices);
 
 	PackedVector2Array pts;
@@ -252,9 +188,9 @@ void CubismRendererExtend::RenderDrawable(Csm::csmInt32 objectIndex) {
 	uvs.resize(vcount);
 	cols.resize(vcount);
 
-	const CubismTextureColor tint = GetModelColorWithOpacity(model->GetDrawableOpacity(objectIndex) * model->GetModelOpacity());
-	const Live2D::Cubism::Core::csmVector4 mult = model->GetDrawableMultiplyColor(objectIndex);
-	const Live2D::Cubism::Core::csmVector4 screen = model->GetDrawableScreenColor(objectIndex);
+	const CubismTextureColor tint = GetModelColorWithOpacity(model->GetDrawableOpacity(drawableIndex) * model->GetModelOpacity());
+	const Live2D::Cubism::Core::csmVector4 mult = model->GetDrawableMultiplyColor(drawableIndex);
+	const Live2D::Cubism::Core::csmVector4 screen = model->GetDrawableScreenColor(drawableIndex);
 	const Csm::csmFloat32 cr = ApplyScreenColor(tint.R * mult.X, screen.X);
 	const Csm::csmFloat32 cg = ApplyScreenColor(tint.G * mult.Y, screen.Y);
 	const Csm::csmFloat32 cb = ApplyScreenColor(tint.B * mult.Z, screen.Z);
@@ -286,7 +222,7 @@ void CubismRendererExtend::RenderDrawable(Csm::csmInt32 objectIndex) {
 
 		pw[vi] = Vector2(lx, -ly);
 		uw[vi] = Vector2(vertexUvs[vi].X, 1.0f - vertexUvs[vi].Y);
-		cw[vi] = IsMaskedVertexVisible(objectIndex, vx, vy) ? vertexColor : Color(cr, cg, cb, 0.0f);
+		cw[vi] = IsMaskedVertexVisible(drawableIndex, vx, vy) ? vertexColor : Color(cr, cg, cb, 0.0f);
 	}
 
 	PackedInt32Array indices;
@@ -299,13 +235,10 @@ void CubismRendererExtend::RenderDrawable(Csm::csmInt32 objectIndex) {
 	CubismUserModelExtend *userModelExtend = static_cast<CubismUserModelExtend *>(_userModel);
 	ERR_FAIL_COND(!userModelExtend);
 
-	const Csm::csmUint64 drawableItemId = GetDrawableItemId(objectIndex);
-	ERR_FAIL_COND(drawableItemId == 0ULL);
-
-	RID ci = GetRIDFromId(drawableItemId);
+	RID ci = GetRIDFromId(userModelExtend->GetBase());
 	ERR_FAIL_COND(!ci.is_valid());
 
-	const Csm::csmInt32 textureIndex = model->GetDrawableTextureIndex(objectIndex);
+	const Csm::csmInt32 textureIndex = model->GetDrawableTextureIndex(drawableIndex);
 	ERR_FAIL_COND(textureIndex < 0);
 
 	RID tex = GetRIDFromId(userModelExtend->GetTexture(textureIndex));
@@ -314,8 +247,8 @@ void CubismRendererExtend::RenderDrawable(Csm::csmInt32 objectIndex) {
 	RenderingServer::get_singleton()->canvas_item_add_triangle_array(ci, indices, pts, cols, uvs, PackedInt32Array(), PackedFloat32Array(), tex);
 }
 
-void CubismRendererExtend::RenderOffscreen(Csm::csmInt32 objectIndex) {
-	WARN_PRINT_ONCE_ED("[GDLive2D] The offscreen type of drawable is not implemented right now.");
+void CubismRendererExtend::RenderOffscreen(Csm::csmInt32 offscreenIndex) {
+	WARN_PRINT_ONCE_ED("[GDLive2D] The offscreen feature is not implemented right now.");
 }
 
 void CubismRendererExtend::DoDrawModel() {
@@ -324,10 +257,6 @@ void CubismRendererExtend::DoDrawModel() {
 
 	CubismUserModelExtend *userModelExtend = static_cast<CubismUserModelExtend *>(_userModel);
 	ERR_FAIL_COND(!userModelExtend);
-
-	EnsureDrawableItems(userModelExtend->GetBase(), model->GetDrawableCount());
-
-	ClearDrawableItems();
 
 	BuildDrawableMaskPass(model);
 
@@ -358,10 +287,6 @@ void CubismRendererExtend::DoDrawModel() {
 
 		switch (objectType) {
 			case DrawableObjectType_Drawable: {
-				const Csm::csmUint64 drawableItemId = GetDrawableItemId(objectIndex);
-				if (drawableItemId != 0ULL) {
-					RenderingServer::get_singleton()->canvas_item_set_z_index(GetRIDFromId(drawableItemId), i);
-				}
 				RenderDrawable(objectIndex);
 			} break;
 			case DrawableObjectType_Offscreen: {
@@ -379,5 +304,4 @@ CubismRendererExtend::CubismRendererExtend(Csm::csmUint32 width, Csm::csmUint32 
 }
 
 CubismRendererExtend::~CubismRendererExtend() {
-	FreeDrawableItems();
 }
