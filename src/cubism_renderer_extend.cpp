@@ -80,7 +80,6 @@ void CubismRendererExtend::BuildDrawableMaskPass(Csm::CubismModel *model) {
 			continue;
 		}
 
-		maskPass.has_mask = true;
 		maskPass.inverted = model->GetDrawableInvertedMask(drawableIndex);
 
 		for (Csm::csmInt32 mi = 0; mi < maskCount; ++mi) {
@@ -115,6 +114,8 @@ void CubismRendererExtend::BuildDrawableMaskPass(Csm::CubismModel *model) {
 				maskPass.triangles.PushBack(tri);
 			}
 		}
+
+		maskPass.has_mask = maskPass.triangles.GetSize() > 0;
 	}
 }
 

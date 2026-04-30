@@ -26,8 +26,11 @@ CubismUserModelExtend::CubismUserModelExtend() :
 }
 
 CubismUserModelExtend::~CubismUserModelExtend() {
+	ReleaseConfigs();
+
 	if (_settingJson) {
 		memdelete(_settingJson);
+		_settingJson = nullptr;
 	}
 }
 
@@ -89,43 +92,65 @@ CubismUserModelExtend::CanvasInfo CubismUserModelExtend::GetModelCanvasInfo() co
 	return _canvasInfo;
 }
 
-void CubismUserModelExtend::LoadPoseJson(const Csm::csmChar *jsonPath) {
-	PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(String::utf8(jsonPath));
-	if (jsonBuffer.is_empty()) {
-		return;
+void CubismUserModelExtend::SetupConfigs(const Csm::csmChar *baseDir) {
+	ERR_FAIL_COND(!_settingJson);
+	ERR_FAIL_COND(!_model);
+	ERR_FAIL_COND(!_modelMatrix);
+
+	_updating = true;
+	_initialized = false;
+
+	ReleaseConfigs();
+
+	const String dir = String::utf8(baseDir);
+
+	{
+		const String path = dir.path_join(String::utf8(_settingJson->GetPoseFileName()));
+		PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(path);
+		if (!jsonBuffer.is_empty()) {
+			LoadPose(jsonBuffer.ptr(), jsonBuffer.size());
+		}
 	}
 
-	if (_pose) {
-		Csm::CubismPose::Delete(_pose);
+	{
+		const String path = dir.path_join(String::utf8(_settingJson->GetPhysicsFileName()));
+		PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(path);
+		if (!jsonBuffer.is_empty()) {
+			LoadPhysics(jsonBuffer.ptr(), jsonBuffer.size());
+		}
 	}
 
-	LoadPose(jsonBuffer.ptr(), jsonBuffer.size());
+	{
+		const String path = dir.path_join(String::utf8(_settingJson->GetUserDataFile()));
+		PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(path);
+		if (!jsonBuffer.is_empty()) {
+			LoadUserData(jsonBuffer.ptr(), jsonBuffer.size());
+		}
+	}
+
+	Csm::csmMap<Csm::csmString, Csm::csmFloat32> layout;
+	_settingJson->GetLayoutMap(layout);
+	_modelMatrix->SetupFromLayout(layout);
+
+	_updating = false;
+	_initialized = true;
 }
 
-void CubismUserModelExtend::LoadPhysicsJson(const Csm::csmChar *jsonPath) {
-	PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(String::utf8(jsonPath));
-	if (jsonBuffer.is_empty()) {
-		return;
+void CubismUserModelExtend::ReleaseConfigs() {
+	if (_pose) {
+		Csm::CubismPose::Delete(_pose);
+		_pose = nullptr;
 	}
 
 	if (_physics) {
 		Csm::CubismPhysics::Delete(_physics);
-	}
-
-	LoadPhysics(jsonBuffer.ptr(), jsonBuffer.size());
-}
-
-void CubismUserModelExtend::LoadUserDataJson(const Csm::csmChar *jsonPath) {
-	PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(String::utf8(jsonPath));
-	if (jsonBuffer.is_empty()) {
-		return;
+		_physics = nullptr;
 	}
 
 	if (_modelUserData) {
 		Csm::CubismModelUserData::Delete(_modelUserData);
+		_modelUserData = nullptr;
 	}
-
-	LoadUserData(jsonBuffer.ptr(), jsonBuffer.size());
 }
 
 Csm::csmUint64 CubismUserModelExtend::GetBase() const {
@@ -159,33 +184,12 @@ void CubismUserModelExtend::BindTexture(Csm::csmInt32 index, Csm::csmUint64 id) 
 void CubismUserModelExtend::Update(const Csm::csmFloat32 deltaTime) {
 	ERR_FAIL_COND(!_model);
 
+	_opacity = _model->GetModelOpacity();
+
 	_dragManager->Update(deltaTime);
 
 	_dragX = _dragManager->GetX();
 	_dragY = _dragManager->GetY();
-
-	Csm::csmBool motionUpdated = false;
-
-	_model->LoadParameters();
-
-	if (_motionManager->IsFinished()) {
-	} else {
-		motionUpdated = _motionManager->UpdateMotion(_model, deltaTime);
-	}
-
-	_model->SaveParameters();
-
-	_opacity = _model->GetModelOpacity();
-
-	if (!motionUpdated) {
-		if (_eyeBlink != NULL) {
-			_eyeBlink->UpdateParameters(_model, deltaTime);
-		}
-	}
-
-	if (_expressionManager != NULL) {
-		_expressionManager->UpdateMotion(_model, deltaTime);
-	}
 
 	_model->AddParameterValue(_idParamAngleX, _dragX * static_cast<Csm::csmFloat32>(30));
 	_model->AddParameterValue(_idParamAngleY, _dragY * static_cast<Csm::csmFloat32>(30));
@@ -194,11 +198,11 @@ void CubismUserModelExtend::Update(const Csm::csmFloat32 deltaTime) {
 	_model->AddParameterValue(_idParamEyeBallX, _dragX);
 	_model->AddParameterValue(_idParamEyeBallY, _dragY);
 
-	if (_breath != NULL) {
+	if (_breath != nullptr) {
 		_breath->UpdateParameters(_model, deltaTime);
 	}
 
-	if (_physics != NULL) {
+	if (_physics != nullptr) {
 		_physics->Evaluate(_model, deltaTime);
 	}
 
@@ -206,7 +210,7 @@ void CubismUserModelExtend::Update(const Csm::csmFloat32 deltaTime) {
 		WARN_PRINT_ONCE("[GDLive2D] The lipSync feature is not implemented right now.");
 	}
 
-	if (_pose != NULL) {
+	if (_pose != nullptr) {
 		_pose->UpdateParameters(_model, deltaTime);
 	}
 
@@ -225,3 +229,105 @@ void CubismUserModelExtend::Draw(Csm::CubismMatrix44 &matrix) {
 
 	renderer->DrawModel();
 }
+
+void CubismUserModelExtend::SetModelParameterValue(const Csm::csmChar *parameterId, Csm::csmFloat32 value) {
+	if (!_model || !parameterId || parameterId[0] == '\0') {
+		return;
+	}
+
+	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(parameterId);
+	if (!id) {
+		return;
+	}
+
+	_model->SetParameterValue(id, value);
+}
+
+void CubismUserModelExtend::GetModelParameterIds(Csm::csmVector<Csm::csmString> &ids) const {
+	ids.Clear();
+	if (!_model) {
+		return;
+	}
+
+	const Csm::csmInt32 count = _model->GetParameterCount();
+	for (Csm::csmInt32 i = 0; i < count; ++i) {
+		const Csm::CubismId *id = _model->GetParameterId(i);
+		if (!id) {
+			continue;
+		}
+		ids.PushBack(id->GetString().GetRawString());
+	}
+}
+
+Csm::csmFloat32 CubismUserModelExtend::GetModelParameterValue(const Csm::csmChar *parameterId) const {
+	if (!_model || !parameterId || parameterId[0] == '\0') {
+		return 0.0f;
+	}
+	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(parameterId);
+	if (!id) {
+		return 0.0f;
+	}
+	return _model->GetParameterValue(id);
+}
+
+bool CubismUserModelExtend::GetModelParameterRange(const Csm::csmChar *parameterId, Csm::csmFloat32 &min, Csm::csmFloat32 &max) const {
+	if (!_model || !parameterId || parameterId[0] == '\0') {
+		return false;
+	}
+
+	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(parameterId);
+	if (!id) {
+		return false;
+	}
+
+	const Csm::csmInt32 count = _model->GetParameterCount();
+	for (Csm::csmInt32 i = 0; i < count; ++i) {
+		const Csm::CubismId *pi = _model->GetParameterId(i);
+		if (pi == id) {
+			min = _model->GetParameterMinimumValue(i);
+			max = _model->GetParameterMaximumValue(i);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+Csm::csmFloat32 CubismUserModelExtend::GetModelParameterDefaultValue(const Csm::csmChar *parameterId) const {
+	if (!_model || !parameterId || parameterId[0] == '\0') {
+		return 0.0f;
+	}
+
+	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(parameterId);
+	if (!id) {
+		return 0.0f;
+	}
+
+	const Csm::csmInt32 count = _model->GetParameterCount();
+	for (Csm::csmInt32 i = 0; i < count; ++i) {
+		const Csm::CubismId *pi = _model->GetParameterId(i);
+		if (pi == id) {
+			return _model->GetParameterDefaultValue(i);
+		}
+	}
+
+	return 0.0f;
+}
+
+void CubismUserModelExtend::SetModelPartVisible(const Csm::csmChar *partId, Csm::csmBool visible) {
+	if (!_model || !partId || partId[0] == '\0') {
+		return;
+	}
+
+	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(partId);
+	if (!id) {
+		return;
+	}
+
+	Csm::csmInt32 parameterIndex = _model->GetParameterIndex(id);
+	if (parameterIndex == -1) {
+		return;
+	}
+	_model->SetParameterValue(parameterIndex, visible ? 1.0f : 0.0f);
+}
+

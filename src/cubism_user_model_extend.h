@@ -41,9 +41,8 @@ public:
 	void LoadModelFromMoc3(const Csm::csmByte *buffer, Csm::csmSizeInt size);
 	CanvasInfo GetModelCanvasInfo() const;
 
-	void LoadPoseJson(const Csm::csmChar *jsonPath);
-	void LoadPhysicsJson(const Csm::csmChar *jsonPath);
-	void LoadUserDataJson(const Csm::csmChar *jsonPath);
+	void SetupConfigs(const Csm::csmChar *baseDir);
+	void ReleaseConfigs();
 
 	Csm::csmUint64 GetBase() const;
 	void BindBase(Csm::csmUint64 id);
@@ -53,4 +52,12 @@ public:
 
 	void Update(const Csm::csmFloat32 deltaTime);
 	void Draw(Csm::CubismMatrix44 &matrix);
+
+	void SetModelParameterValue(const Csm::csmChar *parameterId, Csm::csmFloat32 value);
+	void GetModelParameterIds(Csm::csmVector<Csm::csmString> &ids) const;
+	Csm::csmFloat32 GetModelParameterValue(const Csm::csmChar *parameterId) const;
+	bool GetModelParameterRange(const Csm::csmChar *parameterId, Csm::csmFloat32 &min, Csm::csmFloat32 &max) const;
+	Csm::csmFloat32 GetModelParameterDefaultValue(const Csm::csmChar *parameterId) const;
+
+	void SetModelPartVisible(const Csm::csmChar *partId, Csm::csmBool visible);
 };
