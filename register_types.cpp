@@ -17,12 +17,16 @@ using namespace godot;
 #endif
 
 #include "src/cubism_allocator.h"
+#include "src/live2d_expression.h"
 #include "src/live2d_moc_file.h"
 #include "src/live2d_model_instance.h"
+#include "src/live2d_motion.h"
 
 #ifdef TOOLS_ENABLED
 #include "src/editor/live2d_editor_plugin.h"
+#include "src/editor/live2d_expression_importer.h"
 #include "src/editor/live2d_model_importer.h"
+#include "src/editor/live2d_motion_importer.h"
 #ifdef GDEXTENSION
 #include <godot_cpp/classes/editor_plugin_registration.hpp>
 #elif defined(GODOT_MODULE)
@@ -72,6 +76,8 @@ void initialize_live2d_module(ModuleInitializationLevel p_level) {
 
 		GDREGISTER_CLASS(Live2DMocFile);
 		GDREGISTER_CLASS(ResourceFormatLoaderLive2DMocFile);
+		GDREGISTER_CLASS(Live2DMotion);
+		GDREGISTER_CLASS(Live2DExpression);
 
 		GDREGISTER_CLASS(Live2DModelInstance);
 
@@ -86,6 +92,8 @@ void initialize_live2d_module(ModuleInitializationLevel p_level) {
 #ifdef TOOLS_ENABLED
 	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
 		GDREGISTER_CLASS(Live2DEditorPlugin);
+		GDREGISTER_CLASS(Live2DMotionImporter);
+		GDREGISTER_CLASS(Live2DExpressionImporter);
 		GDREGISTER_CLASS(Live2DModelImporter);
 		EditorPlugins::add_by_type<Live2DEditorPlugin>();
 	}
