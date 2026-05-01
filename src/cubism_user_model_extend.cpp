@@ -105,26 +105,32 @@ void CubismUserModelExtend::SetupConfigs(const Csm::csmChar *baseDir) {
 	const String dir = String::utf8(baseDir);
 
 	{
-		const String path = dir.path_join(String::utf8(_settingJson->GetPoseFileName()));
-		PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(path);
-		if (!jsonBuffer.is_empty()) {
-			LoadPose(jsonBuffer.ptr(), jsonBuffer.size());
+		const String poseFile = String::utf8(_settingJson->GetPoseFileName());
+		if (!poseFile.is_empty()) {
+			PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(dir.path_join(poseFile));
+			if (!jsonBuffer.is_empty()) {
+				LoadPose(jsonBuffer.ptr(), jsonBuffer.size());
+			}
 		}
 	}
 
 	{
-		const String path = dir.path_join(String::utf8(_settingJson->GetPhysicsFileName()));
-		PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(path);
-		if (!jsonBuffer.is_empty()) {
-			LoadPhysics(jsonBuffer.ptr(), jsonBuffer.size());
+		const String physicsFile = String::utf8(_settingJson->GetPhysicsFileName());
+		if (!physicsFile.is_empty()) {
+			PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(dir.path_join(physicsFile));
+			if (!jsonBuffer.is_empty()) {
+				LoadPhysics(jsonBuffer.ptr(), jsonBuffer.size());
+			}
 		}
 	}
 
 	{
-		const String path = dir.path_join(String::utf8(_settingJson->GetUserDataFile()));
-		PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(path);
-		if (!jsonBuffer.is_empty()) {
-			LoadUserData(jsonBuffer.ptr(), jsonBuffer.size());
+		const String userDataFile = String::utf8(_settingJson->GetUserDataFile());
+		if (!userDataFile.is_empty()) {
+			PackedByteArray jsonBuffer = FileAccess::get_file_as_bytes(dir.path_join(userDataFile));
+			if (!jsonBuffer.is_empty()) {
+				LoadUserData(jsonBuffer.ptr(), jsonBuffer.size());
+			}
 		}
 	}
 
@@ -330,4 +336,3 @@ void CubismUserModelExtend::SetModelPartVisible(const Csm::csmChar *partId, Csm:
 	}
 	_model->SetParameterValue(parameterIndex, visible ? 1.0f : 0.0f);
 }
-

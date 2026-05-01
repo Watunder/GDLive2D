@@ -102,7 +102,7 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 		int32_t si = 0;
 		double current_time = static_cast<double>(segments[si++]);
 		double current_value = static_cast<double>(segments[si++]);
-		int32_t previous_key_index = bezier_track_insert_key(track_index, current_time, current_value);
+		int32_t previous_key_index = bezier_track_insert_key(track_index, current_time, current_value, Vector2(0, 0), Vector2(0, 0));
 
 		while (si < segments.size()) {
 			const int32_t segment_type = static_cast<int32_t>(segments[si++]);
@@ -114,7 +114,7 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 					}
 					const double end_time = static_cast<double>(segments[si++]);
 					const double end_value = static_cast<double>(segments[si++]);
-					const int32_t end_key_index = bezier_track_insert_key(track_index, end_time, end_value);
+					const int32_t end_key_index = bezier_track_insert_key(track_index, end_time, end_value, Vector2(0, 0), Vector2(0, 0));
 
 					const double dt = end_time - current_time;
 					const double dv = end_value - current_value;
@@ -137,7 +137,7 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 					const double end_time = static_cast<double>(segments[si++]);
 					const double end_value = static_cast<double>(segments[si++]);
 
-					const int32_t end_key_index = bezier_track_insert_key(track_index, end_time, end_value);
+					const int32_t end_key_index = bezier_track_insert_key(track_index, end_time, end_value, Vector2(0, 0), Vector2(0, 0));
 					bezier_track_set_key_out_handle(track_index, previous_key_index, Vector2(cp1_time - current_time, cp1_value - current_value));
 					bezier_track_set_key_in_handle(track_index, end_key_index, Vector2(cp2_time - end_time, cp2_value - end_value));
 
@@ -157,7 +157,7 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 					if (end_time > current_time) {
 						const double hold_time = end_time - MIN(0.001, (end_time - current_time) * 0.5);
 						if (hold_time > current_time) {
-							const int32_t hold_key_index = bezier_track_insert_key(track_index, hold_time, current_value);
+							const int32_t hold_key_index = bezier_track_insert_key(track_index, hold_time, current_value, Vector2(0, 0), Vector2(0, 0));
 							const double hold_dt = hold_time - current_time;
 							bezier_track_set_key_out_handle(track_index, previous_key_index, Vector2(hold_dt / 3.0, 0.0));
 							bezier_track_set_key_in_handle(track_index, hold_key_index, Vector2(-hold_dt / 3.0, 0.0));
@@ -165,7 +165,7 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 						}
 					}
 
-					const int32_t end_key_index = bezier_track_insert_key(track_index, end_time, end_value);
+					const int32_t end_key_index = bezier_track_insert_key(track_index, end_time, end_value, Vector2(0, 0), Vector2(0, 0));
 					const double dt = end_time - current_time;
 					const double dv = end_value - current_value;
 					bezier_track_set_key_out_handle(track_index, previous_key_index, Vector2(dt / 3.0, dv / 3.0));
@@ -204,12 +204,12 @@ Error Live2DMotion::load(String p_path) {
 		return ERR_FILE_NOT_FOUND;
 	}
 
-	PackedByteArray data = FileAccess::get_file_as_bytes(p_path);
-	if (data.is_empty()) {
+	const String content = FileAccess::get_file_as_string(p_path);
+	if (content.is_empty()) {
 		return FAILED;
 	}
 
-	const Variant parsed = JSON::parse_string(data.get_string_from_utf8());
+	const Variant parsed = JSON::parse_string(content);
 	if (parsed.get_type() != Variant::DICTIONARY) {
 		return ERR_PARSE_ERROR;
 	}

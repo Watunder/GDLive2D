@@ -8,6 +8,7 @@
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/resource_uid.hpp>
+#include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
@@ -16,8 +17,9 @@ using namespace godot;
 #include "core/io/json.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_uid.h"
-#include "scene/animation/animation_library.h"
 #include "scene/animation/animation_player.h"
+#include "scene/main/scene_tree.h"
+#include "scene/resources/animation_library.h"
 #include "scene/resources/texture.h"
 #endif
 
@@ -89,12 +91,12 @@ void Live2DModelInstance::_update_pose_groups(const String &p_model_dir) {
 		return;
 	}
 	const String pose_path = p_model_dir.path_join(pose_rel);
-	PackedByteArray pose_data = FileAccess::get_file_as_bytes(pose_path);
-	if (pose_data.is_empty()) {
+	const String pose_content = FileAccess::get_file_as_string(pose_path);
+	if (pose_content.is_empty()) {
 		return;
 	}
 
-	const Variant parsed = JSON::parse_string(pose_data.get_string_from_utf8());
+	const Variant parsed = JSON::parse_string(pose_content);
 	if (parsed.get_type() != Variant::DICTIONARY) {
 		return;
 	}
@@ -243,7 +245,20 @@ void Live2DModelInstance::_update_animation_player(const String &p_model_dir) {
 		animation_player = memnew(AnimationPlayer);
 		animation_player->set_name("AnimationPlayer");
 		add_child(animation_player);
-		animation_player->set_owner(this);
+		Node *owner = get_owner();
+		if (!owner) {
+			owner = this;
+		}
+		if (is_inside_tree()) {
+			SceneTree *tree = get_tree();
+			if (tree) {
+				Node *edited_scene_root = tree->get_edited_scene_root();
+				if (edited_scene_root && (edited_scene_root == this || edited_scene_root->is_ancestor_of(this))) {
+					owner = edited_scene_root;
+				}
+			}
+		}
+		animation_player->set_owner(owner);
 	}
 	ERR_FAIL_COND(!animation_player);
 
@@ -416,8 +431,7 @@ void Live2DModelInstance::_reset_model_properties() {
 		const String group_key = group_keys[i];
 		const PackedStringArray members = pose_groups[group_key];
 		for (int32_t mi = 0; mi < members.size(); ++mi) {
-			const bool visible = (mi == 0);
-			user_model->SetModelPartVisible(members[mi].utf8().get_data(), visible);
+			user_model->SetModelPartVisible(members[mi].utf8().get_data(), (mi == 0));
 		}
 	}
 }
@@ -437,9 +451,8 @@ bool Live2DModelInstance::_set(const StringName &p_name, const Variant &p_value)
 		selected = CLAMP(selected, 0, members.size() - 1);
 		for (int32_t i = 0; i < members.size(); ++i) {
 			const String part_id = members[i];
-			const bool visible = (i == selected);
 			if (user_model && user_model->GetModel()) {
-				user_model->SetModelPartVisible(part_id.utf8().get_data(), visible);
+				user_model->SetModelPartVisible(part_id.utf8().get_data(), (i == selected));
 			}
 		}
 		return true;
@@ -463,9 +476,8 @@ bool Live2DModelInstance::_set(const StringName &p_name, const Variant &p_value)
 				return true;
 			}
 			for (int32_t i = 0; i < members.size(); ++i) {
-				const bool visible = (i == mi);
 				if (user_model && user_model->GetModel()) {
-					user_model->SetModelPartVisible(members[i].utf8().get_data(), visible);
+					user_model->SetModelPartVisible(members[i].utf8().get_data(), (i == mi));
 				}
 			}
 			return true;

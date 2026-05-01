@@ -74,12 +74,12 @@ Error Live2DExpression::load(String p_path) {
 		return ERR_FILE_NOT_FOUND;
 	}
 
-	PackedByteArray data = FileAccess::get_file_as_bytes(p_path);
-	if (data.is_empty()) {
+	const String content = FileAccess::get_file_as_string(p_path);
+	if (content.is_empty()) {
 		return FAILED;
 	}
 
-	const Variant parsed = JSON::parse_string(data.get_string_from_utf8());
+	const Variant parsed = JSON::parse_string(content);
 	if (parsed.get_type() != Variant::DICTIONARY) {
 		return ERR_PARSE_ERROR;
 	}
