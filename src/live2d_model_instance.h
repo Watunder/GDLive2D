@@ -11,14 +11,14 @@ using namespace godot;
 #include "scene/resources/texture.h"
 #endif
 
-#include "cubism_user_model_extend.h"
 #include "live2d_moc_file.h"
+#include "live2d_user_model.h"
 
 class Live2DModelInstance : public Node2D {
 	GDCLASS(Live2DModelInstance, Node2D);
 
 private:
-	CubismUserModelExtend *user_model = nullptr;
+	Live2DUserModel *user_model = nullptr;
 
 	String model_entry_path;
 

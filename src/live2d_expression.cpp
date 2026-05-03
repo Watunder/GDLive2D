@@ -15,16 +15,6 @@ void Live2DExpression::_from_dict(const Dictionary &p_dict) {
 
 	set_loop_mode(Animation::LOOP_NONE);
 
-	// double fade_in = 0.0;
-	// if (p_dict.has("FadeInTime")) {
-	// 	fade_in = static_cast<double>(p_dict.get("FadeInTime", 0.0));
-	// }
-
-	// double fade_out = 0.0;
-	// if (p_dict.has("FadeOutTime")) {
-	// 	fade_out = static_cast<double>(p_dict.get("FadeOutTime", 0.0));
-	// }
-
 	Array parameters;
 	if (p_dict.has("Parameters") && p_dict["Parameters"].get_type() == Variant::ARRAY) {
 		parameters = p_dict["Parameters"];
@@ -40,10 +30,6 @@ void Live2DExpression::_from_dict(const Dictionary &p_dict) {
 		if (id.is_empty()) {
 			continue;
 		}
-		// const String type = param.get("Blend", "");
-		// if (type.is_empty()) {
-		// 	continue;
-		// }
 
 		const NodePath path = NodePath(vformat(".:%s", id));
 

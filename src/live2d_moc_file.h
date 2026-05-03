@@ -29,8 +29,6 @@ public:
 	String get_load_path() const;
 };
 
-/**************************************************************************/
-
 class ResourceFormatLoaderLive2DMocFile : public ResourceFormatLoader {
 	GDCLASS(ResourceFormatLoaderLive2DMocFile, ResourceFormatLoader);
 

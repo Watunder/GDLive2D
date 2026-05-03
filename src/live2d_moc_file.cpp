@@ -40,8 +40,6 @@ String Live2DMocFile::get_load_path() const {
 	return path_to_file;
 }
 
-/**************************************************************************/
-
 #ifdef GDEXTENSION
 Variant ResourceFormatLoaderLive2DMocFile::_load(const String &p_path, const String &p_original_path, bool p_use_sub_threads, int32_t p_cache_mode) const {
 	Ref<Live2DMocFile> live2d_model_data;

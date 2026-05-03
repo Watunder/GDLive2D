@@ -6,13 +6,11 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/core/print_string.hpp>
 #include <godot_cpp/godot.hpp>
-#include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/variant.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/io/resource_loader.h"
 #include "core/string/print_string.h"
-#include "core/string/ustring.h"
 #include "core/variant/variant.h"
 #endif
 

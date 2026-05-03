@@ -65,9 +65,9 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 				double end_value = key_value;
 
 				switch (segment_type) {
-					case 0: // linear
-					case 2: // stepped
-					case 3: { // inverse stepped
+					case 0:
+					case 2:
+					case 3: {
 						if (si + 1 >= segments.size()) {
 							si = segments.size();
 							continue;
@@ -75,7 +75,7 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 						end_time = static_cast<double>(segments[si++]);
 						end_value = static_cast<double>(segments[si++]);
 					} break;
-					case 1: { // bezier
+					case 1: {
 						if (si + 5 >= segments.size()) {
 							si = segments.size();
 							continue;
@@ -107,7 +107,7 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 		while (si < segments.size()) {
 			const int32_t segment_type = static_cast<int32_t>(segments[si++]);
 			switch (segment_type) {
-				case 0: { // linear
+				case 0: {
 					if (si + 1 >= segments.size()) {
 						si = segments.size();
 						break;
@@ -125,7 +125,7 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 					current_value = end_value;
 					previous_key_index = end_key_index;
 				} break;
-				case 1: { // bezier
+				case 1: {
 					if (si + 5 >= segments.size()) {
 						si = segments.size();
 						break;
@@ -145,8 +145,8 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 					current_value = end_value;
 					previous_key_index = end_key_index;
 				} break;
-				case 2: // stepped
-				case 3: { // inverse stepped
+				case 2:
+				case 3: {
 					if (si + 1 >= segments.size()) {
 						si = segments.size();
 						break;

@@ -50,23 +50,23 @@ void Live2DModelInstance::_update_model_properties() {
 	parameter_mins.clear();
 	parameter_maxs.clear();
 
-	if (!user_model || !user_model->GetModel()) {
+	if (!user_model || !user_model->get_model()) {
 		notify_property_list_changed();
 		return;
 	}
 
-	Csm::csmVector<Csm::csmString> temp_parameter_ids;
-	user_model->GetModelParameterIds(temp_parameter_ids);
-	for (Csm::csmUint32 i = 0; i < temp_parameter_ids.GetSize(); ++i) {
-		const String parameter_id = String::utf8(temp_parameter_ids[i].GetRawString());
+	PackedStringArray temp_parameter_ids;
+	user_model->get_model_parameter_ids(temp_parameter_ids);
+	for (int64_t i = 0; i < temp_parameter_ids.size(); ++i) {
+		const String parameter_id = temp_parameter_ids[i];
 		if (parameter_id.is_empty()) {
 			continue;
 		}
 		parameter_ids.push_back(parameter_id);
-		parameter_values[parameter_id] = user_model->GetModelParameterValue(parameter_id.utf8().get_data());
-		Csm::csmFloat32 min_value = 0.0f;
-		Csm::csmFloat32 max_value = 1.0f;
-		if (user_model->GetModelParameterRange(parameter_id.utf8().get_data(), min_value, max_value)) {
+		parameter_values[parameter_id] = user_model->get_model_parameter_value(parameter_id);
+		float min_value = 0.0f;
+		float max_value = 1.0f;
+		if (user_model->get_model_parameter_range(parameter_id, min_value, max_value)) {
 			parameter_mins[parameter_id] = min_value;
 			parameter_maxs[parameter_id] = max_value;
 		}
@@ -81,7 +81,7 @@ void Live2DModelInstance::_update_pose_groups(const String &p_model_dir) {
 	if (!user_model) {
 		return;
 	}
-	Csm::CubismModelSettingJson *setting = user_model->GetSettingJson();
+	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
 	if (!setting) {
 		return;
 	}
@@ -138,11 +138,11 @@ void Live2DModelInstance::_notification(int p_what) {
 			for (int32_t i = 0; i < keys.size(); ++i) {
 				const String parameter_id = keys[i];
 				const Variant value = parameter_values[parameter_id];
-				user_model->SetModelParameterValue(parameter_id.utf8().get_data(), static_cast<float>(value));
+				user_model->set_model_parameter_value(parameter_id, value);
 			}
 
-			const float delta = static_cast<float>(get_process_delta_time());
-			user_model->Update(delta);
+			const float delta = get_process_delta_time();
+			user_model->update(delta);
 
 			queue_redraw();
 		} break;
@@ -153,7 +153,7 @@ void Live2DModelInstance::_notification(int p_what) {
 			Csm::CubismMatrix44 projection;
 			_update_projection(projection);
 
-			user_model->Draw(projection);
+			user_model->draw(projection);
 		} break;
 
 		default:
@@ -178,7 +178,7 @@ void Live2DModelInstance::_bind_methods() {
 void Live2DModelInstance::_setup_moc_file(const String &p_model_dir) {
 	ERR_FAIL_COND(!user_model);
 
-	Csm::CubismModelSettingJson *setting = user_model->GetSettingJson();
+	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
 	ERR_FAIL_COND(!setting);
 
 	const String moc_path = p_model_dir.path_join(setting->GetModelFileName());
@@ -196,13 +196,13 @@ void Live2DModelInstance::_setup_moc_file(const String &p_model_dir) {
 	}
 
 	PackedByteArray moc_data = moc_file->get_data();
-	user_model->LoadModelFromMoc3(moc_data.ptr(), moc_data.size());
+	user_model->load_model_from_moc3(moc_data);
 }
 
 void Live2DModelInstance::_setup_textures(const String &p_model_dir) {
 	ERR_FAIL_COND(!user_model);
 
-	Csm::CubismModelSettingJson *setting = user_model->GetSettingJson();
+	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
 	ERR_FAIL_COND(!setting);
 
 	const int32_t tex_count = setting->GetTextureCount();
@@ -226,7 +226,7 @@ void Live2DModelInstance::_setup_textures(const String &p_model_dir) {
 			continue;
 		}
 
-		user_model->BindTexture(i, tex->get_rid().get_id());
+		user_model->bind_texture_rid(i, tex->get_rid());
 		textures.push_back(tex);
 	}
 }
@@ -262,7 +262,7 @@ void Live2DModelInstance::_update_animation_player(const String &p_model_dir) {
 	}
 	ERR_FAIL_COND(!animation_player);
 
-	Csm::CubismModelSettingJson *setting = user_model->GetSettingJson();
+	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
 	ERR_FAIL_COND(!setting);
 
 	Ref<AnimationLibrary> library;
@@ -324,7 +324,6 @@ void Live2DModelInstance::_update_animation_player(const String &p_model_dir) {
 	}
 }
 
-// refer to Camera2D::_get_camera_screen_size
 Size2 Live2DModelInstance::_get_screen_size() {
 	if (is_part_of_edited_scene()) {
 #ifdef GDEXTENSION
@@ -339,14 +338,14 @@ Size2 Live2DModelInstance::_get_screen_size() {
 void Live2DModelInstance::_update_projection(Csm::CubismMatrix44 &r_projection) {
 	ERR_FAIL_COND(!user_model);
 
-	const CubismUserModelExtend::CanvasInfo canvas_info = user_model->GetModelCanvasInfo();
+	const Live2DUserModel::CanvasInfo canvas_info = user_model->get_model_canvas_info();
 	const Vector2 screen_size = _get_screen_size();
 
 	float model_scale = 1.0f;
 
-	if (!Math::is_zero_approx(canvas_info.pixelsPerUnit) && !screen_size.is_zero_approx()) {
-		float canvas_width = canvas_info.sizeInPixels.X / canvas_info.pixelsPerUnit;
-		float canvas_height = canvas_info.sizeInPixels.Y / canvas_info.pixelsPerUnit;
+	if (!Math::is_zero_approx(canvas_info.pixels_per_unit) && !screen_size.is_zero_approx()) {
+		float canvas_width = canvas_info.size_in_pixels.x / canvas_info.pixels_per_unit;
+		float canvas_height = canvas_info.size_in_pixels.y / canvas_info.pixels_per_unit;
 		if (!Math::is_zero_approx(canvas_width) && !Math::is_zero_approx(canvas_height)) {
 			const float scale_x = screen_size.x / canvas_width;
 			const float scale_y = screen_size.y / canvas_height;
@@ -370,21 +369,21 @@ void Live2DModelInstance::set_model_entry(const String &p_model_entry_path) {
 	}
 	ERR_FAIL_COND(!path.ends_with(".model3.json"));
 
-	user_model->LoadSettingJson(path.utf8().get_data());
+	user_model->load_setting_json(path);
 
-	Csm::CubismModelSettingJson *setting = user_model->GetSettingJson();
+	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
 	ERR_FAIL_COND(!setting);
 
 	const String model_dir = path.get_base_dir();
 
 	_setup_moc_file(model_dir);
-	ERR_FAIL_COND(!user_model->GetModel());
+	ERR_FAIL_COND(!user_model->get_model());
 
 	_setup_textures(model_dir);
 	ERR_FAIL_COND(textures.is_empty());
 
-	user_model->SetupConfigs(model_dir.utf8().get_data());
-	ERR_FAIL_COND(!user_model->IsInitialized());
+	user_model->setup_configs(model_dir);
+	ERR_FAIL_COND(!user_model->is_initialized());
 
 	_update_pose_groups(model_dir);
 
@@ -394,7 +393,7 @@ void Live2DModelInstance::set_model_entry(const String &p_model_entry_path) {
 
 	_update_model_properties();
 
-	user_model->CreateRenderer();
+	user_model->create_renderer();
 	set_process(true);
 
 	model_entry_path = path;
@@ -417,13 +416,13 @@ TypedArray<Texture2D> Live2DModelInstance::get_textures() const {
 }
 
 void Live2DModelInstance::_reset_model_properties() {
-	if (!user_model || !user_model->GetModel()) {
+	if (!user_model || !user_model->get_model()) {
 		return;
 	}
 
 	for (int32_t i = 0; i < parameter_ids.size(); ++i) {
 		const String parameter_id = parameter_ids[i];
-		parameter_values[parameter_id] = user_model->GetModelParameterDefaultValue(parameter_id.utf8().get_data());
+		parameter_values[parameter_id] = user_model->get_model_parameter_default_value(parameter_id);
 	}
 
 	const Array group_keys = pose_groups.keys();
@@ -431,7 +430,7 @@ void Live2DModelInstance::_reset_model_properties() {
 		const String group_key = group_keys[i];
 		const PackedStringArray members = pose_groups[group_key];
 		for (int32_t mi = 0; mi < members.size(); ++mi) {
-			user_model->SetModelPartVisible(members[mi].utf8().get_data(), (mi == 0));
+			user_model->set_model_part_visible(members[mi], (mi == 0));
 		}
 	}
 }
@@ -451,8 +450,8 @@ bool Live2DModelInstance::_set(const StringName &p_name, const Variant &p_value)
 		selected = CLAMP(selected, 0, members.size() - 1);
 		for (int32_t i = 0; i < members.size(); ++i) {
 			const String part_id = members[i];
-			if (user_model && user_model->GetModel()) {
-				user_model->SetModelPartVisible(part_id.utf8().get_data(), (i == selected));
+			if (user_model && user_model->get_model()) {
+				user_model->set_model_part_visible(part_id, (i == selected));
 			}
 		}
 		return true;
@@ -468,16 +467,17 @@ bool Live2DModelInstance::_set(const StringName &p_name, const Variant &p_value)
 			}
 			bool active = false;
 			if (p_value.get_type() == Variant::BOOL) {
-				active = static_cast<bool>(p_value);
+				active = p_value;
 			} else {
-				active = static_cast<float>(p_value) >= 0.5f;
+				const float v = p_value;
+				active = v >= 0.5f;
 			}
 			if (!active) {
 				return true;
 			}
 			for (int32_t i = 0; i < members.size(); ++i) {
-				if (user_model && user_model->GetModel()) {
-					user_model->SetModelPartVisible(members[i].utf8().get_data(), (i == mi));
+				if (user_model && user_model->get_model()) {
+					user_model->set_model_part_visible(members[i], (i == mi));
 				}
 			}
 			return true;
@@ -503,10 +503,10 @@ bool Live2DModelInstance::_get(const StringName &p_name, Variant &r_ret) const {
 		float best_value = -1.0f;
 		for (int32_t i = 0; i < members.size(); ++i) {
 			const String part_id = members[i];
-			if (!user_model || !user_model->GetModel()) {
+			if (!user_model || !user_model->get_model()) {
 				continue;
 			}
-			const float value = user_model->GetModelParameterValue(part_id.utf8().get_data());
+			const float value = user_model->get_model_parameter_value(part_id);
 			if (value > best_value) {
 				best_value = value;
 				selected = i;
@@ -523,8 +523,8 @@ bool Live2DModelInstance::_get(const StringName &p_name, Variant &r_ret) const {
 		for (int32_t mi = 0; mi < members.size(); ++mi) {
 			if (members[mi] == String(p_name)) {
 				bool active = false;
-				if (user_model && user_model->GetModel()) {
-					const float value = user_model->GetModelParameterValue(members[mi].utf8().get_data());
+				if (user_model && user_model->get_model()) {
+					const float value = user_model->get_model_parameter_value(members[mi]);
 					active = value >= 0.5f;
 				}
 				r_ret = active;
@@ -590,9 +590,9 @@ void Live2DModelInstance::_get_property_list(List<PropertyInfo> *p_list) const {
 Live2DModelInstance::Live2DModelInstance(bool p_is_importing) {
 	is_importing = p_is_importing;
 
-	user_model = memnew(CubismUserModelExtend);
+	user_model = memnew(Live2DUserModel);
 
-	user_model->BindBase(get_canvas_item().get_id());
+	user_model->bind_base_rid(get_canvas_item());
 }
 
 Live2DModelInstance::~Live2DModelInstance() {
