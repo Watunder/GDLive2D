@@ -103,11 +103,14 @@ public:
 	void update(float delta_time);
 	void draw(Csm::CubismMatrix44 &matrix);
 
-	void set_model_parameter_value(const String &parameter_id, float value);
 	void get_model_parameter_ids(PackedStringArray &out_ids) const;
+	void set_model_parameter_value(const String &parameter_id, float value);
 	float get_model_parameter_value(const String &parameter_id) const;
 	bool get_model_parameter_range(const String &parameter_id, float &min_out, float &max_out) const;
 	float get_model_parameter_default_value(const String &parameter_id) const;
 
+	void get_model_part_ids(PackedStringArray &out_ids) const;
 	void set_model_part_visible(const String &part_id, bool visible);
+	void set_model_part_opacity(const String &part_id, float value);
+	float get_model_part_opacity(const String &part_id) const;
 };

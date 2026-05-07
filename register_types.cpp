@@ -100,7 +100,6 @@ void initialize_live2d_module(ModuleInitializationLevel p_level) {
 
 void uninitialize_live2d_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
-		Csm::Rendering::CubismRenderer::StaticRelease();
 		Csm::CubismFramework::Dispose();
 
 #ifdef GDEXTENSION

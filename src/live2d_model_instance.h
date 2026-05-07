@@ -27,16 +27,13 @@ private:
 
 	bool is_importing = false;
 
-	Dictionary parameter_values;
-	Dictionary parameter_mins;
-	Dictionary parameter_maxs;
 	PackedStringArray parameter_ids;
-
-	Dictionary pose_groups;
+	PackedStringArray part_ids;
+	Vector<PackedStringArray> pose_groups;
 
 	void _setup_moc_file(const String &p_model_dir);
 	void _setup_textures(const String &p_model_dir);
-	void _update_pose_groups(const String &p_model_dir);
+	void _setup_pose_groups(const String &p_model_dir);
 
 	void _update_animation_player(const String &p_model_dir);
 	void _update_model_properties();
@@ -57,8 +54,6 @@ public:
 
 	Ref<Live2DMocFile> get_moc_file() const;
 	TypedArray<Texture2D> get_textures() const;
-
-	void _reset_model_properties();
 
 	Live2DModelInstance(bool p_is_importing = false);
 	~Live2DModelInstance();

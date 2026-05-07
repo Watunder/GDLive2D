@@ -44,54 +44,57 @@ static String _get_rel_dir(const char *p_cstr) {
 	return s;
 }
 
+static bool _part_id_in_pose_group(const Vector<PackedStringArray> &p_pose_groups, const String &p_part_id, int32_t *r_group_index = nullptr, int32_t *r_member_index = nullptr) {
+	for (int32_t gi = 0; gi < p_pose_groups.size(); ++gi) {
+		const PackedStringArray &g = p_pose_groups[gi];
+		for (int32_t mi = 0; mi < g.size(); ++mi) {
+			if (g[mi] == p_part_id) {
+				if (r_group_index) {
+					*r_group_index = gi;
+				}
+				if (r_member_index) {
+					*r_member_index = mi;
+				}
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 void Live2DModelInstance::_update_model_properties() {
 	parameter_ids.clear();
-	parameter_values.clear();
-	parameter_mins.clear();
-	parameter_maxs.clear();
+	part_ids.clear();
 
 	if (!user_model || !user_model->get_model()) {
 		notify_property_list_changed();
 		return;
 	}
 
-	PackedStringArray temp_parameter_ids;
-	user_model->get_model_parameter_ids(temp_parameter_ids);
-	for (int64_t i = 0; i < temp_parameter_ids.size(); ++i) {
-		const String parameter_id = temp_parameter_ids[i];
-		if (parameter_id.is_empty()) {
-			continue;
-		}
-		parameter_ids.push_back(parameter_id);
-		parameter_values[parameter_id] = user_model->get_model_parameter_value(parameter_id);
-		float min_value = 0.0f;
-		float max_value = 1.0f;
-		if (user_model->get_model_parameter_range(parameter_id, min_value, max_value)) {
-			parameter_mins[parameter_id] = min_value;
-			parameter_maxs[parameter_id] = max_value;
-		}
-	}
+	user_model->get_model_parameter_ids(parameter_ids);
+	user_model->get_model_part_ids(part_ids);
 
 	notify_property_list_changed();
 }
 
-void Live2DModelInstance::_update_pose_groups(const String &p_model_dir) {
+void Live2DModelInstance::_setup_pose_groups(const String &p_model_dir) {
 	pose_groups.clear();
 
 	if (!user_model) {
 		return;
 	}
+
 	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
 	if (!setting) {
 		return;
 	}
 
-	const String pose_rel = String::utf8(setting->GetPoseFileName());
-	if (pose_rel.is_empty()) {
+	const String pose_file = String::utf8(setting->GetPoseFileName());
+	if (pose_file.is_empty()) {
 		return;
 	}
-	const String pose_path = p_model_dir.path_join(pose_rel);
-	const String pose_content = FileAccess::get_file_as_string(pose_path);
+
+	const String pose_content = FileAccess::get_file_as_string(p_model_dir.path_join(pose_file));
 	if (pose_content.is_empty()) {
 		return;
 	}
@@ -101,6 +104,7 @@ void Live2DModelInstance::_update_pose_groups(const String &p_model_dir) {
 		return;
 	}
 	const Dictionary pose_dict = parsed;
+
 	const Array groups = pose_dict.get("Groups", Array());
 	for (int32_t gi = 0; gi < groups.size(); ++gi) {
 		if (groups[gi].get_type() != Variant::ARRAY) {
@@ -110,7 +114,7 @@ void Live2DModelInstance::_update_pose_groups(const String &p_model_dir) {
 		if (group.size() < 2) {
 			continue;
 		}
-		PackedStringArray members;
+		PackedStringArray linked_parts;
 		for (int32_t pi = 0; pi < group.size(); ++pi) {
 			if (group[pi].get_type() != Variant::DICTIONARY) {
 				continue;
@@ -118,14 +122,13 @@ void Live2DModelInstance::_update_pose_groups(const String &p_model_dir) {
 			const Dictionary part = group[pi];
 			const String part_id = part.get("Id", "");
 			if (!part_id.is_empty()) {
-				members.push_back(part_id);
+				linked_parts.push_back(part_id);
 			}
 		}
-		if (members.size() < 2) {
+		if (linked_parts.size() < 2) {
 			continue;
 		}
-		const String group_key = vformat("PoseGroups/%d", gi);
-		pose_groups[group_key] = members;
+		pose_groups.push_back(linked_parts);
 	}
 }
 
@@ -133,13 +136,6 @@ void Live2DModelInstance::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_PROCESS: {
 			ERR_BREAK(!user_model);
-
-			const Array keys = parameter_values.keys();
-			for (int32_t i = 0; i < keys.size(); ++i) {
-				const String parameter_id = keys[i];
-				const Variant value = parameter_values[parameter_id];
-				user_model->set_model_parameter_value(parameter_id, value);
-			}
 
 			const float delta = get_process_delta_time();
 			user_model->update(delta);
@@ -167,8 +163,6 @@ void Live2DModelInstance::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("get_moc_file"), &Live2DModelInstance::get_moc_file);
 	ClassDB::bind_method(D_METHOD("get_textures"), &Live2DModelInstance::get_textures);
-
-	ClassDB::bind_method(D_METHOD("_reset_model_properties"), &Live2DModelInstance::_reset_model_properties);
 
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "model_entry", PROPERTY_HINT_FILE, "*.model3.json"), "set_model_entry", "get_model_entry");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "moc_file", PROPERTY_HINT_RESOURCE_TYPE, "Live2DMocFile", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_READ_ONLY), "", "get_moc_file");
@@ -359,13 +353,12 @@ void Live2DModelInstance::_update_projection(Csm::CubismMatrix44 &r_projection) 
 void Live2DModelInstance::set_model_entry(const String &p_model_entry_path) {
 	ERR_FAIL_COND(!user_model);
 
-	if (p_model_entry_path == model_entry_path) {
-		return;
-	}
-
 	String path = p_model_entry_path;
 	if (path.begins_with("uid://")) {
 		path = ResourceUID::uid_to_path(path);
+	}
+	if (path == model_entry_path) {
+		return;
 	}
 	ERR_FAIL_COND(!path.ends_with(".model3.json"));
 
@@ -385,7 +378,7 @@ void Live2DModelInstance::set_model_entry(const String &p_model_entry_path) {
 	user_model->setup_configs(model_dir);
 	ERR_FAIL_COND(!user_model->is_initialized());
 
-	_update_pose_groups(model_dir);
+	_setup_pose_groups(model_dir);
 
 	if (is_inside_tree() || is_importing) {
 		_update_animation_player(model_dir);
@@ -415,175 +408,71 @@ TypedArray<Texture2D> Live2DModelInstance::get_textures() const {
 	return ret;
 }
 
-void Live2DModelInstance::_reset_model_properties() {
-	if (!user_model || !user_model->get_model()) {
-		return;
-	}
-
-	for (int32_t i = 0; i < parameter_ids.size(); ++i) {
-		const String parameter_id = parameter_ids[i];
-		parameter_values[parameter_id] = user_model->get_model_parameter_default_value(parameter_id);
-	}
-
-	const Array group_keys = pose_groups.keys();
-	for (int32_t i = 0; i < group_keys.size(); ++i) {
-		const String group_key = group_keys[i];
-		const PackedStringArray members = pose_groups[group_key];
-		for (int32_t mi = 0; mi < members.size(); ++mi) {
-			user_model->set_model_part_visible(members[mi], (mi == 0));
-		}
-	}
-}
-
 bool Live2DModelInstance::_set(const StringName &p_name, const Variant &p_value) {
-	if (parameter_values.has(p_name)) {
-		parameter_values[p_name] = p_value;
+	const String key = p_name;
+
+	if (parameter_ids.has(key)) {
+		const float v = p_value.operator float();
+		user_model->set_model_parameter_value(key, v);
 		return true;
 	}
 
-	if (pose_groups.has(p_name)) {
-		const PackedStringArray members = pose_groups[p_name];
-		if (members.is_empty()) {
+	if (part_ids.has(key)) {
+		int32_t gi = -1;
+		int32_t mi = -1;
+		if (_part_id_in_pose_group(pose_groups, key, &gi, &mi)) {
+			const PackedStringArray &linked_parts = pose_groups[gi];
+			const bool visible = p_value.operator bool() || (p_value.operator float() > 0.5f);
+			for (int32_t mj = 0; mj < linked_parts.size(); ++mj) {
+				const String part_id = linked_parts[mj];
+				user_model->set_model_part_visible(part_id, (mj == mi) ? visible : !visible);
+			}
 			return true;
 		}
-		int32_t selected = static_cast<int32_t>(p_value);
-		selected = CLAMP(selected, 0, members.size() - 1);
-		for (int32_t i = 0; i < members.size(); ++i) {
-			const String part_id = members[i];
-			if (user_model && user_model->get_model()) {
-				user_model->set_model_part_visible(part_id, (i == selected));
-			}
-		}
-		return true;
-	}
 
-	const Array group_keys = pose_groups.keys();
-	for (int32_t gi = 0; gi < group_keys.size(); ++gi) {
-		const String group_key = group_keys[gi];
-		const PackedStringArray members = pose_groups[group_key];
-		for (int32_t mi = 0; mi < members.size(); ++mi) {
-			if (members[mi] != String(p_name)) {
-				continue;
-			}
-			bool active = false;
-			if (p_value.get_type() == Variant::BOOL) {
-				active = p_value;
-			} else {
-				const float v = p_value;
-				active = v >= 0.5f;
-			}
-			if (!active) {
-				return true;
-			}
-			for (int32_t i = 0; i < members.size(); ++i) {
-				if (user_model && user_model->get_model()) {
-					user_model->set_model_part_visible(members[i], (i == mi));
-				}
-			}
-			return true;
-		}
+		const float v = CLAMP(p_value.operator float(), 0.0f, 1.0f);
+		user_model->set_model_part_opacity(key, v);
+		return true;
 	}
 
 	return false;
 }
 
 bool Live2DModelInstance::_get(const StringName &p_name, Variant &r_ret) const {
-	if (parameter_values.has(p_name)) {
-		r_ret = parameter_values[p_name];
+	const String key = p_name;
+
+	if (parameter_ids.has(key)) {
+		r_ret = user_model->get_model_parameter_value(key);
 		return true;
 	}
 
-	if (pose_groups.has(p_name)) {
-		const PackedStringArray members = pose_groups[p_name];
-		if (members.is_empty()) {
-			r_ret = 0;
-			return true;
+	if (part_ids.has(key)) {
+		if (_part_id_in_pose_group(pose_groups, key)) {
+			r_ret = user_model->get_model_parameter_value(key);
+		} else {
+			r_ret = user_model->get_model_part_opacity(key);
 		}
-		int32_t selected = 0;
-		float best_value = -1.0f;
-		for (int32_t i = 0; i < members.size(); ++i) {
-			const String part_id = members[i];
-			if (!user_model || !user_model->get_model()) {
-				continue;
-			}
-			const float value = user_model->get_model_parameter_value(part_id);
-			if (value > best_value) {
-				best_value = value;
-				selected = i;
-			}
-		}
-		r_ret = selected;
 		return true;
-	}
-
-	const Array group_keys = pose_groups.keys();
-	for (int32_t gi = 0; gi < group_keys.size(); ++gi) {
-		const String group_key = group_keys[gi];
-		const PackedStringArray members = pose_groups[group_key];
-		for (int32_t mi = 0; mi < members.size(); ++mi) {
-			if (members[mi] == String(p_name)) {
-				bool active = false;
-				if (user_model && user_model->get_model()) {
-					const float value = user_model->get_model_parameter_value(members[mi]);
-					active = value >= 0.5f;
-				}
-				r_ret = active;
-				return true;
-			}
-		}
 	}
 
 	return false;
 }
 
 void Live2DModelInstance::_get_property_list(List<PropertyInfo> *p_list) const {
-	p_list->push_back(PropertyInfo(Variant::NIL, "Parameters", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP));
-	for (int32_t i = 0; i < parameter_ids.size(); ++i) {
-		const String parameter_id = parameter_ids[i];
-		double min_value = -1.0;
-		double max_value = 1.0;
-		if (parameter_mins.has(parameter_id)) {
-			min_value = static_cast<double>(parameter_mins[parameter_id]);
+	p_list->push_back(PropertyInfo(Variant::NIL, "Parameter", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP));
+	for (const String &parameter_id : parameter_ids) {
+		float min_v = -1.0f;
+		float max_v = 1.0f;
+		if (user_model) {
+			user_model->get_model_parameter_range(parameter_id, min_v, max_v);
 		}
-		if (parameter_maxs.has(parameter_id)) {
-			max_value = static_cast<double>(parameter_maxs[parameter_id]);
-		}
-		const String hint = vformat("%s,%s,0.001,or_less,or_greater", String::num_real(min_value), String::num_real(max_value));
+		const String hint = vformat("%s,%s,0.001,or_less,or_greater", String::num_real(min_v), String::num_real(max_v));
 		p_list->push_back(PropertyInfo(Variant::FLOAT, parameter_id, PROPERTY_HINT_RANGE, hint));
 	}
 
-	p_list->push_back(PropertyInfo(Variant::NIL, "PoseGroups", PROPERTY_HINT_NONE, "PoseGroups/", PROPERTY_USAGE_GROUP));
-	const Array group_keys = pose_groups.keys();
-	for (int32_t i = 0; i < group_keys.size(); ++i) {
-		const String group_key = group_keys[i];
-		const PackedStringArray members = pose_groups[group_key];
-		if (members.is_empty()) {
-			continue;
-		}
-		String labels;
-		for (int32_t mi = 0; mi < members.size(); ++mi) {
-			if (mi > 0) {
-				labels += ",";
-			}
-			labels += members[mi];
-		}
-		p_list->push_back(PropertyInfo(Variant::INT, group_key, PROPERTY_HINT_ENUM, labels));
-	}
-
-	PackedStringArray hidden_part_ids;
-	for (int32_t gi = 0; gi < group_keys.size(); ++gi) {
-		const String group_key = group_keys[gi];
-		const PackedStringArray members = pose_groups[group_key];
-		for (int32_t mi = 0; mi < members.size(); ++mi) {
-			const String part_id = members[mi];
-			if (!hidden_part_ids.has(part_id)) {
-				hidden_part_ids.push_back(part_id);
-			}
-		}
-	}
-	for (int32_t i = 0; i < hidden_part_ids.size(); ++i) {
-		const String part_id = hidden_part_ids[i];
-		p_list->push_back(PropertyInfo(Variant::BOOL, part_id, PROPERTY_HINT_NONE, "", PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_NO_EDITOR));
+	p_list->push_back(PropertyInfo(Variant::NIL, "PartOpacity", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP));
+	for (const String &part_id : part_ids) {
+		p_list->push_back(PropertyInfo(Variant::FLOAT, part_id, PROPERTY_HINT_RANGE, "0.0,1.0,0.001,or_less,or_greater"));
 	}
 }
 

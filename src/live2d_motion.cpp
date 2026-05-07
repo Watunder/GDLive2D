@@ -47,54 +47,6 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 		}
 
 		const NodePath path = NodePath(vformat(".:%s", id));
-		const bool is_part_opacity = (target == "PartOpacity");
-
-		if (is_part_opacity) {
-			const int32_t track_index = add_track(Animation::TYPE_VALUE);
-			track_set_path(track_index, path);
-			value_track_set_update_mode(track_index, Animation::UPDATE_DISCRETE);
-
-			int32_t si = 0;
-			double key_time = static_cast<double>(segments[si++]);
-			double key_value = static_cast<double>(segments[si++]);
-			track_insert_key(track_index, key_time, key_value >= 0.5 ? true : false);
-
-			while (si < segments.size()) {
-				const int32_t segment_type = static_cast<int32_t>(segments[si++]);
-				double end_time = key_time;
-				double end_value = key_value;
-
-				switch (segment_type) {
-					case 0:
-					case 2:
-					case 3: {
-						if (si + 1 >= segments.size()) {
-							si = segments.size();
-							continue;
-						}
-						end_time = static_cast<double>(segments[si++]);
-						end_value = static_cast<double>(segments[si++]);
-					} break;
-					case 1: {
-						if (si + 5 >= segments.size()) {
-							si = segments.size();
-							continue;
-						}
-						si += 4;
-						end_time = static_cast<double>(segments[si++]);
-						end_value = static_cast<double>(segments[si++]);
-					} break;
-					default:
-						si = segments.size();
-						continue;
-				}
-
-				key_time = end_time;
-				key_value = end_value;
-				track_insert_key(track_index, key_time, key_value >= 0.5 ? true : false);
-			}
-			continue;
-		}
 
 		const int32_t track_index = add_track(Animation::TYPE_BEZIER);
 		track_set_path(track_index, path);

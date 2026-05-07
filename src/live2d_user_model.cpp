@@ -315,20 +315,6 @@ void Live2DUserModel::draw(Csm::CubismMatrix44 &matrix) {
 	renderer->draw_model();
 }
 
-void Live2DUserModel::set_model_parameter_value(const String &parameter_id, float value) {
-	if (!model || parameter_id.is_empty()) {
-		return;
-	}
-
-	const CharString utf8 = parameter_id.utf8();
-	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
-	if (!id) {
-		return;
-	}
-
-	model->SetParameterValue(id, value);
-}
-
 void Live2DUserModel::get_model_parameter_ids(PackedStringArray &out_ids) const {
 	out_ids.clear();
 	if (!model) {
@@ -343,6 +329,20 @@ void Live2DUserModel::get_model_parameter_ids(PackedStringArray &out_ids) const 
 		}
 		out_ids.append(String::utf8(id->GetString().GetRawString()));
 	}
+}
+
+void Live2DUserModel::set_model_parameter_value(const String &parameter_id, float value) {
+	if (!model || parameter_id.is_empty()) {
+		return;
+	}
+
+	const CharString utf8 = parameter_id.utf8();
+	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
+	if (!id) {
+		return;
+	}
+
+	model->SetParameterValue(id, value);
 }
 
 float Live2DUserModel::get_model_parameter_value(const String &parameter_id) const {
@@ -405,6 +405,22 @@ float Live2DUserModel::get_model_parameter_default_value(const String &parameter
 	return 0.0f;
 }
 
+void Live2DUserModel::get_model_part_ids(PackedStringArray &out_ids) const {
+	out_ids.clear();
+	if (!model) {
+		return;
+	}
+
+	const Csm::csmInt32 count = model->GetPartCount();
+	for (Csm::csmInt32 i = 0; i < count; ++i) {
+		const Csm::CubismId *id = model->GetPartId(static_cast<Csm::csmUint32>(i));
+		if (!id) {
+			continue;
+		}
+		out_ids.append(String::utf8(id->GetString().GetRawString()));
+	}
+}
+
 void Live2DUserModel::set_model_part_visible(const String &part_id, bool visible) {
 	if (!model || part_id.is_empty()) {
 		return;
@@ -421,4 +437,37 @@ void Live2DUserModel::set_model_part_visible(const String &part_id, bool visible
 		return;
 	}
 	model->SetParameterValue(parameter_index, visible ? 1.0f : 0.0f);
+}
+
+void Live2DUserModel::set_model_part_opacity(const String &part_id, float value) {
+	if (!model || part_id.is_empty()) {
+		return;
+	}
+
+	const CharString utf8 = part_id.utf8();
+	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
+	if (!id) {
+		return;
+	}
+
+	return model->SetPartOpacity(id, value);
+}
+
+float Live2DUserModel::get_model_part_opacity(const String &part_id) const {
+	if (!model || part_id.is_empty()) {
+		return 0.0f;
+	}
+
+	const CharString utf8 = part_id.utf8();
+	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
+	if (!id) {
+		return 0.0f;
+	}
+
+	const Csm::csmInt32 parameter_index = model->GetParameterIndex(id);
+	if (parameter_index == -1) {
+		return 0.0f;
+	}
+
+	return model->GetPartOpacity(id);
 }
