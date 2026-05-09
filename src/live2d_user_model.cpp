@@ -53,8 +53,8 @@ Live2DUserModel::~Live2DUserModel() {
 	_delete_renderer();
 }
 
-void Live2DUserModel::_load_model(const Csm::csmByte *buffer, Csm::csmSizeInt size) {
-	moc = Csm::CubismMoc::Create(buffer, size, true);
+void Live2DUserModel::_load_model(const uint8_t *p_buffer, int64_t p_size) {
+	moc = Csm::CubismMoc::Create(p_buffer, p_size, true);
 
 	if (moc == nullptr) {
 		CubismLogError("Failed to CubismMoc::Create().");
@@ -78,27 +78,27 @@ void Live2DUserModel::_load_model(const Csm::csmByte *buffer, Csm::csmSizeInt si
 	model_matrix = CSM_NEW Csm::CubismModelMatrix(model->GetCanvasWidth(), model->GetCanvasHeight());
 }
 
-void Live2DUserModel::_load_pose(const Csm::csmByte *buffer, Csm::csmSizeInt size) {
-	pose = Csm::CubismPose::Create(buffer, size);
+void Live2DUserModel::_load_pose(const uint8_t *p_buffer, int64_t p_size) {
+	pose = Csm::CubismPose::Create(p_buffer, p_size);
 	if (!pose) {
 		CubismLogError("Failed to LoadPose().");
 	}
 }
 
-void Live2DUserModel::_load_physics(const Csm::csmByte *buffer, Csm::csmSizeInt size) {
-	physics = Csm::CubismPhysics::Create(buffer, size);
+void Live2DUserModel::_load_physics(const uint8_t *p_buffer, int64_t p_size) {
+	physics = Csm::CubismPhysics::Create(p_buffer, p_size);
 	if (!physics) {
 		CubismLogError("Failed to LoadPhysics().");
 	}
 }
 
-void Live2DUserModel::_load_user_data(const Csm::csmByte *buffer, Csm::csmSizeInt size) {
-	if (!buffer) {
+void Live2DUserModel::_load_user_data(const uint8_t *p_buffer, int64_t p_size) {
+	if (!p_buffer) {
 		CubismLogError("Failed to LoadUserData().");
 		return;
 	}
 
-	model_user_data = Csm::CubismModelUserData::Create(buffer, size);
+	model_user_data = Csm::CubismModelUserData::Create(p_buffer, p_size);
 }
 
 void Live2DUserModel::_delete_renderer() {
@@ -114,23 +114,23 @@ void Live2DUserModel::create_renderer() {
 	create_renderer(static_cast<uint32_t>(model->GetCanvasWidth()), static_cast<uint32_t>(model->GetCanvasHeight()), 1);
 }
 
-void Live2DUserModel::create_renderer(uint32_t width, uint32_t height, int32_t mask_buffer_count) {
+void Live2DUserModel::create_renderer(uint32_t p_width, uint32_t p_height, int32_t p_mask_buffer_count) {
 	if (renderer) {
 		_delete_renderer();
 	}
 
-	renderer = CSM_NEW Live2DRenderer(width, height);
+	renderer = CSM_NEW Live2DRenderer(p_width, p_height);
 	ERR_FAIL_COND(!renderer);
 
-	renderer->initialize(this, mask_buffer_count);
+	renderer->initialize(this, p_mask_buffer_count);
 }
 
 Csm::CubismModelSettingJson *Live2DUserModel::get_setting_json() const {
 	return setting_json;
 }
 
-void Live2DUserModel::load_setting_json(const String &json_path) {
-	const PackedByteArray json_buffer = FileAccess::get_file_as_bytes(json_path);
+void Live2DUserModel::load_setting_json(const String &p_json_path) {
+	const PackedByteArray json_buffer = FileAccess::get_file_as_bytes(p_json_path);
 	if (json_buffer.is_empty()) {
 		return;
 	}
@@ -143,7 +143,7 @@ void Live2DUserModel::load_setting_json(const String &json_path) {
 	setting_json = memnew(Csm::CubismModelSettingJson(json_buffer.ptr(), json_buffer.size()));
 }
 
-void Live2DUserModel::load_model_from_moc3(const PackedByteArray &moc_data) {
+void Live2DUserModel::load_model_from_moc3(const PackedByteArray &p_moc_data) {
 	if (moc) {
 		moc->DeleteModel(model);
 		Csm::CubismMoc::Delete(moc);
@@ -156,7 +156,7 @@ void Live2DUserModel::load_model_from_moc3(const PackedByteArray &moc_data) {
 		model_matrix = nullptr;
 	}
 
-	_load_model(moc_data.ptr(), moc_data.size());
+	_load_model(p_moc_data.ptr(), p_moc_data.size());
 	ERR_FAIL_COND(!model);
 
 	Live2D::Cubism::Core::csmVector2 tmp_size_in_pixels{ 0.0f, 0.0f };
@@ -174,7 +174,7 @@ Live2DUserModel::CanvasInfo Live2DUserModel::get_model_canvas_info() const {
 	return canvas_info;
 }
 
-void Live2DUserModel::setup_configs(const String &base_dir) {
+void Live2DUserModel::setup_configs(const String &p_base_dir) {
 	ERR_FAIL_COND(!setting_json);
 	ERR_FAIL_COND(!model);
 	ERR_FAIL_COND(!model_matrix);
@@ -187,7 +187,7 @@ void Live2DUserModel::setup_configs(const String &base_dir) {
 	{
 		const String pose_file = String::utf8(setting_json->GetPoseFileName());
 		if (!pose_file.is_empty()) {
-			const PackedByteArray json_buffer = FileAccess::get_file_as_bytes(base_dir.path_join(pose_file));
+			const PackedByteArray json_buffer = FileAccess::get_file_as_bytes(p_base_dir.path_join(pose_file));
 			if (!json_buffer.is_empty()) {
 				_load_pose(json_buffer.ptr(), json_buffer.size());
 			}
@@ -197,7 +197,7 @@ void Live2DUserModel::setup_configs(const String &base_dir) {
 	{
 		const String physics_file = String::utf8(setting_json->GetPhysicsFileName());
 		if (!physics_file.is_empty()) {
-			const PackedByteArray json_buffer = FileAccess::get_file_as_bytes(base_dir.path_join(physics_file));
+			const PackedByteArray json_buffer = FileAccess::get_file_as_bytes(p_base_dir.path_join(physics_file));
 			if (!json_buffer.is_empty()) {
 				_load_physics(json_buffer.ptr(), json_buffer.size());
 			}
@@ -207,7 +207,7 @@ void Live2DUserModel::setup_configs(const String &base_dir) {
 	{
 		const String user_data_file = String::utf8(setting_json->GetUserDataFile());
 		if (!user_data_file.is_empty()) {
-			const PackedByteArray json_buffer = FileAccess::get_file_as_bytes(base_dir.path_join(user_data_file));
+			const PackedByteArray json_buffer = FileAccess::get_file_as_bytes(p_base_dir.path_join(user_data_file));
 			if (!json_buffer.is_empty()) {
 				_load_user_data(json_buffer.ptr(), json_buffer.size());
 			}
@@ -243,34 +243,35 @@ RID Live2DUserModel::get_base_rid() const {
 	return base_rid;
 }
 
-void Live2DUserModel::bind_base_rid(const RID &rid) {
-	base_rid = rid;
+void Live2DUserModel::bind_base_rid(const RID &p_rid) {
+	base_rid = p_rid;
 }
 
-RID Live2DUserModel::get_texture_rid(int32_t index) const {
-	if (index < 0 || index >= texture_rids.size()) {
+RID Live2DUserModel::get_texture_rid(int32_t p_index) const {
+	if (p_index < 0 || p_index >= texture_rids.size()) {
 		return RID();
 	}
-	return texture_rids.get(index);
+
+	return texture_rids.get(p_index);
 }
 
-void Live2DUserModel::bind_texture_rid(int32_t index, const RID &rid) {
-	if (index < 0) {
+void Live2DUserModel::bind_texture_rid(int32_t p_index, const RID &p_rid) {
+	if (p_index < 0) {
 		return;
 	}
 
-	const Vector<RID>::Size idx = index;
+	const Vector<RID>::Size idx = p_index;
 	while (texture_rids.size() <= idx) {
 		texture_rids.push_back(RID());
 	}
 
-	texture_rids.set(idx, rid);
+	texture_rids.set(idx, p_rid);
 }
 
-void Live2DUserModel::update(float delta_time) {
+void Live2DUserModel::update(float p_delta_time) {
 	ERR_FAIL_COND(!model);
 
-	const Csm::csmFloat32 dt = delta_time;
+	const Csm::csmFloat32 dt = p_delta_time;
 
 	opacity = model->GetModelOpacity();
 
@@ -305,18 +306,18 @@ void Live2DUserModel::update(float delta_time) {
 	model->Update();
 }
 
-void Live2DUserModel::draw(Csm::CubismMatrix44 &matrix) {
+void Live2DUserModel::draw(Csm::CubismMatrix44 &p_matrix) {
 	ERR_FAIL_COND(!model);
 	ERR_FAIL_COND(!renderer);
 
-	matrix.MultiplyByMatrix(model_matrix);
+	p_matrix.MultiplyByMatrix(model_matrix);
 
-	renderer->set_mvp_matrix(&matrix);
+	renderer->set_mvp_matrix(&p_matrix);
 	renderer->draw_model();
 }
 
-void Live2DUserModel::get_model_parameter_ids(PackedStringArray &out_ids) const {
-	out_ids.clear();
+void Live2DUserModel::get_model_parameter_ids(PackedStringArray &r_parameter_ids) const {
+	r_parameter_ids.clear();
 	if (!model) {
 		return;
 	}
@@ -327,30 +328,30 @@ void Live2DUserModel::get_model_parameter_ids(PackedStringArray &out_ids) const 
 		if (!id) {
 			continue;
 		}
-		out_ids.append(String::utf8(id->GetString().GetRawString()));
+		r_parameter_ids.append(String::utf8(id->GetString().GetRawString()));
 	}
 }
 
-void Live2DUserModel::set_model_parameter_value(const String &parameter_id, float value) {
-	if (!model || parameter_id.is_empty()) {
+void Live2DUserModel::set_model_parameter_value(const String &p_parameter_id, float p_value) {
+	if (!model || p_parameter_id.is_empty()) {
 		return;
 	}
 
-	const CharString utf8 = parameter_id.utf8();
+	const CharString utf8 = p_parameter_id.utf8();
 	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
 	if (!id) {
 		return;
 	}
 
-	model->SetParameterValue(id, value);
+	model->SetParameterValue(id, p_value);
 }
 
-float Live2DUserModel::get_model_parameter_value(const String &parameter_id) const {
-	if (!model || parameter_id.is_empty()) {
+float Live2DUserModel::get_model_parameter_value(const String &p_parameter_id) const {
+	if (!model || p_parameter_id.is_empty()) {
 		return 0.0f;
 	}
 
-	const CharString utf8 = parameter_id.utf8();
+	const CharString utf8 = p_parameter_id.utf8();
 	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
 	if (!id) {
 		return 0.0f;
@@ -359,12 +360,12 @@ float Live2DUserModel::get_model_parameter_value(const String &parameter_id) con
 	return model->GetParameterValue(id);
 }
 
-bool Live2DUserModel::get_model_parameter_range(const String &parameter_id, float &min_out, float &max_out) const {
-	if (!model || parameter_id.is_empty()) {
+bool Live2DUserModel::get_model_parameter_range(const String &p_parameter_id, float &r_min, float &r_max) const {
+	if (!model || p_parameter_id.is_empty()) {
 		return false;
 	}
 
-	const CharString utf8 = parameter_id.utf8();
+	const CharString utf8 = p_parameter_id.utf8();
 	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
 	if (!id) {
 		return false;
@@ -374,8 +375,8 @@ bool Live2DUserModel::get_model_parameter_range(const String &parameter_id, floa
 	for (Csm::csmInt32 i = 0; i < count; ++i) {
 		const Csm::CubismId *pi = model->GetParameterId(i);
 		if (pi == id) {
-			min_out = model->GetParameterMinimumValue(i);
-			max_out = model->GetParameterMaximumValue(i);
+			r_min = model->GetParameterMinimumValue(i);
+			r_max = model->GetParameterMaximumValue(i);
 			return true;
 		}
 	}
@@ -383,12 +384,12 @@ bool Live2DUserModel::get_model_parameter_range(const String &parameter_id, floa
 	return false;
 }
 
-float Live2DUserModel::get_model_parameter_default_value(const String &parameter_id) const {
-	if (!model || parameter_id.is_empty()) {
+float Live2DUserModel::get_model_parameter_default_value(const String &p_parameter_id) const {
+	if (!model || p_parameter_id.is_empty()) {
 		return 0.0f;
 	}
 
-	const CharString utf8 = parameter_id.utf8();
+	const CharString utf8 = p_parameter_id.utf8();
 	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
 	if (!id) {
 		return 0.0f;
@@ -405,8 +406,8 @@ float Live2DUserModel::get_model_parameter_default_value(const String &parameter
 	return 0.0f;
 }
 
-void Live2DUserModel::get_model_part_ids(PackedStringArray &out_ids) const {
-	out_ids.clear();
+void Live2DUserModel::get_model_part_ids(PackedStringArray &r_out_ids) const {
+	r_out_ids.clear();
 	if (!model) {
 		return;
 	}
@@ -417,16 +418,16 @@ void Live2DUserModel::get_model_part_ids(PackedStringArray &out_ids) const {
 		if (!id) {
 			continue;
 		}
-		out_ids.append(String::utf8(id->GetString().GetRawString()));
+		r_out_ids.append(String::utf8(id->GetString().GetRawString()));
 	}
 }
 
-void Live2DUserModel::set_model_part_visible(const String &part_id, bool visible) {
-	if (!model || part_id.is_empty()) {
+void Live2DUserModel::set_model_part_visible(const String &p_part_id, bool p_visible) {
+	if (!model || p_part_id.is_empty()) {
 		return;
 	}
 
-	const CharString utf8 = part_id.utf8();
+	const CharString utf8 = p_part_id.utf8();
 	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
 	if (!id) {
 		return;
@@ -436,36 +437,32 @@ void Live2DUserModel::set_model_part_visible(const String &part_id, bool visible
 	if (parameter_index == -1) {
 		return;
 	}
-	model->SetParameterValue(parameter_index, visible ? 1.0f : 0.0f);
+
+	model->SetParameterValue(parameter_index, p_visible ? 1.0f : 0.0f);
 }
 
-void Live2DUserModel::set_model_part_opacity(const String &part_id, float value) {
-	if (!model || part_id.is_empty()) {
+void Live2DUserModel::set_model_part_opacity(const String &p_part_id, float p_value) {
+	if (!model || p_part_id.is_empty()) {
 		return;
 	}
 
-	const CharString utf8 = part_id.utf8();
+	const CharString utf8 = p_part_id.utf8();
 	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
 	if (!id) {
 		return;
 	}
 
-	return model->SetPartOpacity(id, value);
+	return model->SetPartOpacity(id, p_value);
 }
 
-float Live2DUserModel::get_model_part_opacity(const String &part_id) const {
-	if (!model || part_id.is_empty()) {
+float Live2DUserModel::get_model_part_opacity(const String &p_part_id) const {
+	if (!model || p_part_id.is_empty()) {
 		return 0.0f;
 	}
 
-	const CharString utf8 = part_id.utf8();
+	const CharString utf8 = p_part_id.utf8();
 	const Csm::CubismId *id = Csm::CubismFramework::GetIdManager()->GetId(utf8.get_data());
 	if (!id) {
-		return 0.0f;
-	}
-
-	const Csm::csmInt32 parameter_index = model->GetParameterIndex(id);
-	if (parameter_index == -1) {
 		return 0.0f;
 	}
 

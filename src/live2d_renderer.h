@@ -43,11 +43,11 @@ private:
 	void _render_offscreen(int32_t offscreen_index);
 
 public:
-	Live2DRenderer(uint32_t width, uint32_t height);
+	Live2DRenderer(uint32_t p_width, uint32_t p_height);
 	virtual ~Live2DRenderer();
 
 	void initialize(Live2DUserModel *p_user_model);
-	void initialize(Live2DUserModel *p_user_model, int32_t mask_buffer_count);
+	void initialize(Live2DUserModel *p_user_model, int32_t p_mask_buffer_count);
 
 	void set_mvp_matrix(Csm::CubismMatrix44 *p_matrix);
 

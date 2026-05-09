@@ -24,7 +24,7 @@ static float apply_screen_color(float base_value, float screen_value) {
 	return 1.0f - (1.0f - b) * (1.0f - s);
 }
 
-Live2DRenderer::Live2DRenderer(uint32_t /*width*/, uint32_t /*height*/) {
+Live2DRenderer::Live2DRenderer(uint32_t /*p_width*/, uint32_t /*p_height*/) {
 	mvp_matrix.resize(16);
 	float *w = mvp_matrix.ptrw();
 	std::memset(w, 0, sizeof(float) * 16);
@@ -38,7 +38,7 @@ void Live2DRenderer::initialize(Live2DUserModel *p_user_model) {
 	initialize(p_user_model, 1);
 }
 
-void Live2DRenderer::initialize(Live2DUserModel *p_user_model, int32_t /*mask_buffer_count*/) {
+void Live2DRenderer::initialize(Live2DUserModel *p_user_model, int32_t /*p_mask_buffer_count*/) {
 	ERR_FAIL_COND(!p_user_model);
 	user_model = p_user_model;
 

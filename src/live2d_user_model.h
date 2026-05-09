@@ -69,10 +69,10 @@ private:
 	float drag_x = 0.0f;
 	float drag_y = 0.0f;
 
-	void _load_model(const Csm::csmByte *buffer, Csm::csmSizeInt size);
-	void _load_pose(const Csm::csmByte *buffer, Csm::csmSizeInt size);
-	void _load_physics(const Csm::csmByte *buffer, Csm::csmSizeInt size);
-	void _load_user_data(const Csm::csmByte *buffer, Csm::csmSizeInt size);
+	void _load_model(const uint8_t *p_buffer, int64_t p_size);
+	void _load_pose(const uint8_t *p_buffer, int64_t p_size);
+	void _load_physics(const uint8_t *p_buffer, int64_t p_size);
+	void _load_user_data(const uint8_t *p_buffer, int64_t p_size);
 	void _delete_renderer();
 
 public:
@@ -83,34 +83,34 @@ public:
 	bool is_initialized() const { return initialized; }
 
 	void create_renderer();
-	void create_renderer(uint32_t width, uint32_t height, int32_t mask_buffer_count = 1);
+	void create_renderer(uint32_t p_width, uint32_t p_height, int32_t p_mask_buffer_count = 1);
 
 	Csm::CubismModelSettingJson *get_setting_json() const;
-	void load_setting_json(const String &json_path);
+	void load_setting_json(const String &p_json_path);
 
-	void load_model_from_moc3(const PackedByteArray &moc_data);
+	void load_model_from_moc3(const PackedByteArray &p_moc_data);
 	CanvasInfo get_model_canvas_info() const;
 
-	void setup_configs(const String &base_dir);
+	void setup_configs(const String &p_base_dir);
 	void release_configs();
 
 	RID get_base_rid() const;
-	void bind_base_rid(const RID &rid);
+	void bind_base_rid(const RID &p_rid);
 
-	RID get_texture_rid(int32_t index) const;
-	void bind_texture_rid(int32_t index, const RID &rid);
+	RID get_texture_rid(int32_t p_index) const;
+	void bind_texture_rid(int32_t p_index, const RID &p_rid);
 
-	void update(float delta_time);
-	void draw(Csm::CubismMatrix44 &matrix);
+	void update(float p_delta_time);
+	void draw(Csm::CubismMatrix44 &p_matrix);
 
-	void get_model_parameter_ids(PackedStringArray &out_ids) const;
-	void set_model_parameter_value(const String &parameter_id, float value);
-	float get_model_parameter_value(const String &parameter_id) const;
-	bool get_model_parameter_range(const String &parameter_id, float &min_out, float &max_out) const;
-	float get_model_parameter_default_value(const String &parameter_id) const;
+	void get_model_parameter_ids(PackedStringArray &r_parameter_ids) const;
+	void set_model_parameter_value(const String &p_parameter_id, float p_value);
+	float get_model_parameter_value(const String &p_parameter_id) const;
+	bool get_model_parameter_range(const String &p_parameter_id, float &r_min, float &r_max) const;
+	float get_model_parameter_default_value(const String &p_parameter_id) const;
 
-	void get_model_part_ids(PackedStringArray &out_ids) const;
-	void set_model_part_visible(const String &part_id, bool visible);
-	void set_model_part_opacity(const String &part_id, float value);
-	float get_model_part_opacity(const String &part_id) const;
+	void get_model_part_ids(PackedStringArray &r_out_ids) const;
+	void set_model_part_visible(const String &p_part_id, bool p_visible);
+	void set_model_part_opacity(const String &p_part_id, float p_value);
+	float get_model_part_opacity(const String &p_part_id) const;
 };

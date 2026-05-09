@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import os
 import glob
+import os
 
 from config import can_build, get_opts
 from gdlive2d_methods import link_cubism_core_library

@@ -3,8 +3,8 @@
 Import("env")
 Import("env_modules")
 
-import os
 import glob
+import os
 
 from gdlive2d_methods import link_cubism_core_library
 

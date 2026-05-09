@@ -422,10 +422,10 @@ bool Live2DModelInstance::_set(const StringName &p_name, const Variant &p_value)
 		int32_t mi = -1;
 		if (_part_id_in_pose_group(pose_groups, key, &gi, &mi)) {
 			const PackedStringArray &linked_parts = pose_groups[gi];
-			const bool visible = p_value.operator bool() || (p_value.operator float() > 0.5f);
+			const bool part_visible = (p_value.operator float() > 0.0f);
 			for (int32_t mj = 0; mj < linked_parts.size(); ++mj) {
 				const String part_id = linked_parts[mj];
-				user_model->set_model_part_visible(part_id, (mj == mi) ? visible : !visible);
+				user_model->set_model_part_visible(part_id, (mj == mi) ? part_visible : !part_visible);
 			}
 			return true;
 		}
