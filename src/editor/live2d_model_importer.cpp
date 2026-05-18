@@ -74,7 +74,7 @@ Error Live2DModelImporter::_import(const String &p_source_file, const String &p_
 		return ERR_FILE_UNRECOGNIZED;
 	}
 
-	Live2DModelInstance *instance = memnew(Live2DModelInstance);
+	Live2DModelInstance *instance = memnew(Live2DModelInstance(true));
 	instance->set_name(p_source_file.get_base_dir().get_file());
 	instance->set_model_entry(p_source_file);
 
@@ -148,8 +148,8 @@ Error Live2DModelImporter::import(ResourceUID::ID p_source_id, const String &p_s
 		return ERR_FILE_UNRECOGNIZED;
 	}
 
-	Live2DModelInstance *instance = memnew(Live2DModelInstance);
-	instance->set_name(p_source_file.get_base_dir().get_basename());
+	Live2DModelInstance *instance = memnew(Live2DModelInstance(true));
+	instance->set_name(p_source_file.get_base_dir().get_file());
 	instance->set_model_entry(p_source_file);
 
 	Ref<PackedScene> packed;

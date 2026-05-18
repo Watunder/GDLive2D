@@ -6,23 +6,25 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/core/print_string.hpp>
 #include <godot_cpp/godot.hpp>
-#include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/variant.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/io/resource_loader.h"
 #include "core/string/print_string.h"
-#include "core/string/ustring.h"
 #include "core/variant/variant.h"
 #endif
 
 #include "src/cubism_allocator.h"
+#include "src/live2d_expression.h"
 #include "src/live2d_moc_file.h"
 #include "src/live2d_model_instance.h"
+#include "src/live2d_motion.h"
 
 #ifdef TOOLS_ENABLED
 #include "src/editor/live2d_editor_plugin.h"
+#include "src/editor/live2d_expression_importer.h"
 #include "src/editor/live2d_model_importer.h"
+#include "src/editor/live2d_motion_importer.h"
 #ifdef GDEXTENSION
 #include <godot_cpp/classes/editor_plugin_registration.hpp>
 #elif defined(GODOT_MODULE)
@@ -35,7 +37,7 @@ using namespace godot;
 static CubismAllocator _cubism_allocator;
 static Csm::CubismFramework::Option _cubism_option;
 
-static Ref<ResourceFormatLoaderLive2DModelData> resource_format_loader_live2d_model_data;
+static Ref<ResourceFormatLoaderLive2DMocFile> resource_format_loader_live2d_moc_file;
 
 void initialize_live2d_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
@@ -71,21 +73,25 @@ void initialize_live2d_module(ModuleInitializationLevel p_level) {
 		Csm::CubismFramework::Initialize();
 
 		GDREGISTER_CLASS(Live2DMocFile);
-		GDREGISTER_CLASS(ResourceFormatLoaderLive2DModelData);
+		GDREGISTER_CLASS(ResourceFormatLoaderLive2DMocFile);
+		GDREGISTER_CLASS(Live2DMotion);
+		GDREGISTER_CLASS(Live2DExpression);
 
 		GDREGISTER_CLASS(Live2DModelInstance);
 
-		resource_format_loader_live2d_model_data.instantiate();
+		resource_format_loader_live2d_moc_file.instantiate();
 #ifdef GDEXTENSION
-		ResourceLoader::get_singleton()->add_resource_format_loader(resource_format_loader_live2d_model_data);
+		ResourceLoader::get_singleton()->add_resource_format_loader(resource_format_loader_live2d_moc_file);
 #elif defined(GODOT_MODULE)
-		ResourceLoader::add_resource_format_loader(resource_format_loader_live2d_model_data);
+		ResourceLoader::add_resource_format_loader(resource_format_loader_live2d_moc_file);
 #endif
 	}
 
 #ifdef TOOLS_ENABLED
 	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
 		GDREGISTER_CLASS(Live2DEditorPlugin);
+		GDREGISTER_CLASS(Live2DMotionImporter);
+		GDREGISTER_CLASS(Live2DExpressionImporter);
 		GDREGISTER_CLASS(Live2DModelImporter);
 		EditorPlugins::add_by_type<Live2DEditorPlugin>();
 	}
@@ -94,15 +100,14 @@ void initialize_live2d_module(ModuleInitializationLevel p_level) {
 
 void uninitialize_live2d_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
-		Csm::Rendering::CubismRenderer::StaticRelease();
 		Csm::CubismFramework::Dispose();
 
 #ifdef GDEXTENSION
-		ResourceLoader::get_singleton()->remove_resource_format_loader(resource_format_loader_live2d_model_data);
+		ResourceLoader::get_singleton()->remove_resource_format_loader(resource_format_loader_live2d_moc_file);
 #elif defined(GODOT_MODULE)
-		ResourceLoader::remove_resource_format_loader(resource_format_loader_live2d_model_data);
+		ResourceLoader::remove_resource_format_loader(resource_format_loader_live2d_moc_file);
 #endif
-		resource_format_loader_live2d_model_data.unref();
+		resource_format_loader_live2d_moc_file.unref();
 	}
 
 #ifdef TOOLS_ENABLED
