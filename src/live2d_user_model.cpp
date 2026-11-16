@@ -2,9 +2,11 @@
 
 #ifdef GDEXTENSION
 #include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/rendering_server.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/io/file_access.h"
+#include "servers/rendering_server.h"
 #endif
 
 #include "live2d_renderer.h"
@@ -25,6 +27,8 @@ Live2DUserModel::Live2DUserModel() {
 }
 
 Live2DUserModel::~Live2DUserModel() {
+	_delete_renderer();
+
 	if (setting_json) {
 		memdelete(setting_json);
 		setting_json = nullptr;
@@ -49,8 +53,6 @@ Live2DUserModel::~Live2DUserModel() {
 
 	CSM_DELETE(drag_manager);
 	drag_manager = nullptr;
-
-	_delete_renderer();
 }
 
 void Live2DUserModel::_load_model(const uint8_t *p_buffer, int64_t p_size) {
@@ -110,7 +112,6 @@ void Live2DUserModel::_delete_renderer() {
 
 void Live2DUserModel::create_renderer() {
 	ERR_FAIL_COND(!model);
-
 	create_renderer(static_cast<uint32_t>(model->GetCanvasWidth()), static_cast<uint32_t>(model->GetCanvasHeight()), 1);
 }
 
@@ -123,6 +124,8 @@ void Live2DUserModel::create_renderer(uint32_t p_width, uint32_t p_height, int32
 	ERR_FAIL_COND(!renderer);
 
 	renderer->initialize(this, p_mask_buffer_count);
+	renderer->bind_mask_targets(mask_viewport_rid, mask_container_rid);
+	renderer->update_model();
 }
 
 Csm::CubismModelSettingJson *Live2DUserModel::get_setting_json() const {
@@ -227,12 +230,10 @@ void Live2DUserModel::release_configs() {
 		Csm::CubismPose::Delete(pose);
 		pose = nullptr;
 	}
-
 	if (physics) {
 		Csm::CubismPhysics::Delete(physics);
 		physics = nullptr;
 	}
-
 	if (model_user_data) {
 		Csm::CubismModelUserData::Delete(model_user_data);
 		model_user_data = nullptr;
@@ -247,11 +248,15 @@ void Live2DUserModel::bind_base_rid(const RID &p_rid) {
 	base_rid = p_rid;
 }
 
+void Live2DUserModel::bind_mask_targets(const RID &p_viewport_rid, const RID &p_mask_container_rid) {
+	mask_viewport_rid = p_viewport_rid;
+	mask_container_rid = p_mask_container_rid;
+}
+
 RID Live2DUserModel::get_texture_rid(int32_t p_index) const {
 	if (p_index < 0 || p_index >= texture_rids.size()) {
 		return RID();
 	}
-
 	return texture_rids.get(p_index);
 }
 
@@ -264,7 +269,6 @@ void Live2DUserModel::bind_texture_rid(int32_t p_index, const RID &p_rid) {
 	while (texture_rids.size() <= idx) {
 		texture_rids.push_back(RID());
 	}
-
 	texture_rids.set(idx, p_rid);
 }
 
@@ -290,20 +294,28 @@ void Live2DUserModel::update(float p_delta_time) {
 	if (breath != nullptr) {
 		breath->UpdateParameters(model, dt);
 	}
-
 	if (physics != nullptr) {
 		physics->Evaluate(model, dt);
 	}
-
 	if (lip_sync) {
 		WARN_PRINT_ONCE("[GDLive2D] The lipSync feature is not implemented right now.");
 	}
-
 	if (pose != nullptr) {
 		pose->UpdateParameters(model, dt);
 	}
 
 	model->Update();
+}
+
+void Live2DUserModel::update_masks(Csm::CubismMatrix44 &p_matrix) {
+	ERR_FAIL_COND(!model);
+	ERR_FAIL_COND(!renderer);
+
+	Csm::CubismMatrix44 mvp(p_matrix);
+	mvp.MultiplyByMatrix(model_matrix);
+
+	renderer->set_mvp_matrix(&mvp);
+	renderer->update_masks();
 }
 
 void Live2DUserModel::draw(Csm::CubismMatrix44 &p_matrix) {
@@ -452,7 +464,7 @@ void Live2DUserModel::set_model_part_opacity(const String &p_part_id, float p_va
 		return;
 	}
 
-	return model->SetPartOpacity(id, p_value);
+	model->SetPartOpacity(id, p_value);
 }
 
 float Live2DUserModel::get_model_part_opacity(const String &p_part_id) const {

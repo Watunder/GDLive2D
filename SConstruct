@@ -23,7 +23,7 @@ CUBISM_FRAMEWORK_EXCLUDE_FILES = (
     "CubismCdiJson.cpp",
     "CubismViewMatrix.cpp",
     "CubismUserModel.cpp",
-    "CubismRenderer.cpp",
+    # "CubismRenderer.cpp",
 )
 
 env = SConscript("lib/godot-cpp/SConstruct").Clone()

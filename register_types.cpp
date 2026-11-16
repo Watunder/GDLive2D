@@ -19,6 +19,7 @@ using namespace godot;
 #include "src/live2d_moc_file.h"
 #include "src/live2d_model_instance.h"
 #include "src/live2d_motion.h"
+#include "src/live2d_shader_library.h"
 
 #ifdef TOOLS_ENABLED
 #include "src/editor/live2d_editor_plugin.h"
@@ -100,6 +101,8 @@ void initialize_live2d_module(ModuleInitializationLevel p_level) {
 
 void uninitialize_live2d_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+		Live2DShaderLibrary::release();
+
 		Csm::CubismFramework::Dispose();
 
 #ifdef GDEXTENSION

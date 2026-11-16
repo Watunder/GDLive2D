@@ -2,12 +2,14 @@
 
 #ifdef GDEXTENSION
 #include <godot_cpp/classes/node2d.hpp>
+#include <godot_cpp/classes/sub_viewport.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/variant/variant.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/variant/variant.h"
 #include "scene/2d/node_2d.h"
+#include "scene/main/viewport.h"
 #include "scene/resources/texture.h"
 #endif
 
@@ -19,6 +21,9 @@ class Live2DModelInstance : public Node2D {
 
 private:
 	Live2DUserModel *user_model = nullptr;
+
+	SubViewport *mask_viewport = nullptr;
+	Node2D *mask_container = nullptr;
 
 	String model_entry_path;
 

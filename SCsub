@@ -25,7 +25,7 @@ CUBISM_FRAMEWORK_EXCLUDE_FILES = (
     "CubismCdiJson.cpp",
     "CubismViewMatrix.cpp",
     "CubismUserModel.cpp",
-    "CubismRenderer.cpp",
+    # "CubismRenderer.cpp",
 )
 
 env_live2d = env_modules.Clone()

@@ -46,6 +46,9 @@ private:
 	RID base_rid;
 	Vector<RID> texture_rids;
 
+	RID mask_viewport_rid;
+	RID mask_container_rid;
+
 	CanvasInfo canvas_info;
 
 	Csm::CubismMoc *moc = nullptr;
@@ -97,10 +100,15 @@ public:
 	RID get_base_rid() const;
 	void bind_base_rid(const RID &p_rid);
 
+	void bind_mask_targets(const RID &p_viewport_rid, const RID &p_mask_container_rid);
+
 	RID get_texture_rid(int32_t p_index) const;
 	void bind_texture_rid(int32_t p_index, const RID &p_rid);
 
 	void update(float p_delta_time);
+
+	void update_masks(Csm::CubismMatrix44 &p_matrix);
+
 	void draw(Csm::CubismMatrix44 &p_matrix);
 
 	void get_model_parameter_ids(PackedStringArray &r_parameter_ids) const;

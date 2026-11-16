@@ -10,6 +10,8 @@
 #include <godot_cpp/classes/resource_uid.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/viewport_texture.hpp>
+#include <godot_cpp/classes/world2d.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/config/project_settings.h"
@@ -19,12 +21,15 @@ using namespace godot;
 #include "core/io/resource_uid.h"
 #include "scene/animation/animation_player.h"
 #include "scene/main/scene_tree.h"
+#include "scene/main/viewport.h"
 #include "scene/resources/animation_library.h"
 #include "scene/resources/texture.h"
+#include "scene/resources/world_2d.h"
 #endif
 
 #include "live2d_expression.h"
 #include "live2d_motion.h"
+#include "live2d_renderer.h"
 
 #include <CubismModelSettingJson.hpp>
 #include <Math/CubismModelMatrix.hpp>
@@ -139,6 +144,10 @@ void Live2DModelInstance::_notification(int p_what) {
 
 			const float delta = get_process_delta_time();
 			user_model->update(delta);
+
+			Csm::CubismMatrix44 mask_projection;
+			_update_projection(mask_projection);
+			user_model->update_masks(mask_projection);
 
 			queue_redraw();
 		} break;
@@ -480,8 +489,26 @@ Live2DModelInstance::Live2DModelInstance(bool p_is_importing) {
 	is_importing = p_is_importing;
 
 	user_model = memnew(Live2DUserModel);
-
 	user_model->bind_base_rid(get_canvas_item());
+
+	mask_viewport = memnew(SubViewport);
+	mask_viewport->set_name("Live2DMaskViewport");
+	mask_viewport->set_size(Vector2i(Live2DRenderer::MASK_TARGET_SIZE, Live2DRenderer::MASK_TARGET_SIZE));
+	mask_viewport->set_update_mode(SubViewport::UPDATE_ALWAYS);
+	mask_viewport->set_clear_mode(SubViewport::CLEAR_MODE_ALWAYS);
+	mask_viewport->set_transparent_background(false);
+	mask_viewport->set_disable_3d(true);
+
+	Ref<World2D> mask_world;
+	mask_world.instantiate();
+	mask_viewport->set_world_2d(mask_world);
+	add_child(mask_viewport, false, Node::INTERNAL_MODE_FRONT);
+
+	mask_container = memnew(Node2D);
+	mask_container->set_name("MaskCanvas");
+	mask_viewport->add_child(mask_container);
+
+	user_model->bind_mask_targets(mask_viewport->get_viewport_rid(), mask_container->get_canvas_item());
 }
 
 Live2DModelInstance::~Live2DModelInstance() {
