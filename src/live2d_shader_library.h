@@ -5,8 +5,8 @@
 #include <godot_cpp/classes/shader_material.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
-#include "scene/resources/shader.h"
 #include "scene/resources/material.h"
+#include "scene/resources/shader.h"
 #endif
 
 #include <Live2DCubismCore.hpp>

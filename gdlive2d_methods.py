@@ -1,7 +1,7 @@
 import os
 
 
-def get_library(core_dir, *paths):
+def _get_library(core_dir, *paths):
     return os.path.join(core_dir, "lib", *paths)
 
 
@@ -11,7 +11,7 @@ def link_cubism_core_library(env, core_dir):
         if arch == "x86_32":
             arch = "x86"
         rt = "MDd" if env["debug_crt"] else "MT" if env["use_static_cpp"] else "MD"
-        lib = get_library(
+        lib = _get_library(
             core_dir,
             "windows",
             arch,
