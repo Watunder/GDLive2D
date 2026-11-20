@@ -70,7 +70,7 @@ Error Live2DMotionImporter::_import(const String &p_source_file, const String &p
 	motion_file.instantiate();
 	Error load_err = motion_file->load(p_source_file);
 	if (load_err != OK) {
-		ERR_PRINT(String("[GDLive2D] failed to load motion file: ") + p_source_file);
+		ERR_PRINT(String("[GDLive2D] Failed to load motion file: ") + p_source_file);
 		return load_err;
 	}
 
@@ -139,7 +139,7 @@ Error Live2DMotionImporter::import(ResourceUID::ID p_source_id, const String &p_
 	motion_file.instantiate();
 	Error load_err = motion_file->load(p_source_file);
 	if (load_err != OK) {
-		ERR_PRINT(vformat("[GDLive2D] failed to load motion file: %s", p_source_file));
+		ERR_PRINT(vformat("[GDLive2D] Failed to load motion file: %s", p_source_file));
 		return load_err;
 	}
 

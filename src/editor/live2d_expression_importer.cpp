@@ -68,9 +68,10 @@ Error Live2DExpressionImporter::_import(const String &p_source_file, const Strin
 
 	Ref<Live2DExpression> expression;
 	expression.instantiate();
+
 	const Error load_err = expression->load(p_source_file);
 	if (load_err != OK) {
-		ERR_PRINT(String("[GDLive2D] failed to load expression file: ") + p_source_file);
+		ERR_PRINT(String("[GDLive2D] Failed to load expression file: ") + p_source_file);
 		return load_err;
 	}
 
@@ -137,9 +138,10 @@ Error Live2DExpressionImporter::import(ResourceUID::ID p_source_id, const String
 
 	Ref<Live2DExpression> expression;
 	expression.instantiate();
+
 	const Error load_err = expression->load(p_source_file);
 	if (load_err != OK) {
-		ERR_PRINT(vformat("[GDLive2D] failed to load expression file: %s", p_source_file));
+		ERR_PRINT(vformat("[GDLive2D] Failed to load expression file: %s", p_source_file));
 		return load_err;
 	}
 

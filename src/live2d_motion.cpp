@@ -207,3 +207,63 @@ Error Live2DMotion::load(String p_path) {
 	_from_dict(parsed);
 	return OK;
 }
+
+#ifdef GDEXTENSION
+Variant ResourceFormatLoaderLive2DMotion::_load(const String &p_path, const String &p_original_path, bool p_use_sub_threads, int32_t p_cache_mode) const {
+	Ref<Live2DMotion> motion;
+	motion.instantiate();
+
+	if (motion->load(p_path) != OK) {
+		return Ref<Resource>();
+	}
+
+	return motion;
+}
+
+PackedStringArray ResourceFormatLoaderLive2DMotion::_get_recognized_extensions() const {
+	PackedStringArray extensions;
+	extensions.push_back("motion3.json");
+	return extensions;
+}
+
+bool ResourceFormatLoaderLive2DMotion::_handles_type(const StringName &p_type) const {
+	return ClassDB::is_parent_class(p_type, "Live2DMotion");
+}
+
+String ResourceFormatLoaderLive2DMotion::_get_resource_type(const String &p_path) const {
+	if (p_path.ends_with(".motion3.json")) {
+		return "Live2DMotion";
+	}
+	return "";
+}
+#elif defined(GODOT_MODULE)
+Ref<Resource> ResourceFormatLoaderLive2DMotion::load(const String &p_path, const String &p_original_path, Error *r_error, bool p_use_sub_threads, float *r_progress, CacheMode p_cache_mode) {
+	if (r_error) {
+		*r_error = ERR_FILE_CANT_OPEN;
+	}
+
+	Ref<Live2DMotion> motion;
+	motion.instantiate();
+
+	if (motion->load(p_path) != OK) {
+		return Ref<Resource>();
+	}
+
+	return motion;
+}
+
+void ResourceFormatLoaderLive2DMotion::get_recognized_extensions(List<String> *p_extensions) const {
+	p_extensions->push_back("motion3.json");
+}
+
+bool ResourceFormatLoaderLive2DMotion::handles_type(const String &p_type) const {
+	return ClassDB::is_parent_class(p_type, "Live2DMotion");
+}
+
+String ResourceFormatLoaderLive2DMotion::get_resource_type(const String &p_path) const {
+	if (p_path.ends_with(".motion3.json")) {
+		return "Live2DMotion";
+	}
+	return "";
+}
+#endif

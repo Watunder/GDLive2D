@@ -5,6 +5,7 @@
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/json.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/resource_uid.hpp>
@@ -12,6 +13,7 @@
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/viewport_texture.hpp>
 #include <godot_cpp/classes/world2d.hpp>
+#include <godot_cpp/core/print_string.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/config/project_settings.h"
@@ -19,10 +21,12 @@ using namespace godot;
 #include "core/io/json.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_uid.h"
+#include "core/string/print_string.h"
 #include "scene/animation/animation_player.h"
 #include "scene/main/scene_tree.h"
 #include "scene/main/viewport.h"
 #include "scene/resources/animation_library.h"
+#include "scene/resources/packed_scene.h"
 #include "scene/resources/texture.h"
 #include "scene/resources/world_2d.h"
 #endif
@@ -194,7 +198,7 @@ void Live2DModelInstance::_setup_moc_file(const String &p_model_dir) {
 
 	moc_file = res;
 	if (moc_file.is_null()) {
-		ERR_PRINT_ED(String("[GDLive2D] Moc file failed to load: ") + moc_path);
+		ERR_PRINT(String("[GDLive2D] Failed to load moc file: ") + moc_path);
 		return;
 	}
 
@@ -225,7 +229,7 @@ void Live2DModelInstance::_setup_textures(const String &p_model_dir) {
 
 		const Ref<Texture2D> tex = res;
 		if (tex.is_null()) {
-			ERR_PRINT_ED("[GDLive2D] Texture failed to load: " + tex_path);
+			ERR_PRINT("[GDLive2D] Failed to load texture: " + tex_path);
 			continue;
 		}
 
@@ -287,7 +291,7 @@ void Live2DModelInstance::_update_animation_player(const String &p_model_dir) {
 
 			Ref<Live2DMotion> motion = res;
 			if (motion.is_null()) {
-				ERR_PRINT_ED(String("[GDLive2D] Motion file failed to load: ") + motion_path);
+				ERR_PRINT(String("[GDLive2D] Failed to load motion file: ") + motion_path);
 				continue;
 			}
 			library->add_animation(animation_name, motion);
@@ -311,7 +315,7 @@ void Live2DModelInstance::_update_animation_player(const String &p_model_dir) {
 
 		Ref<Live2DExpression> expression = res;
 		if (expression.is_null()) {
-			ERR_PRINT_ED(String("[GDLive2D] Expression file failed to load: ") + expression_path);
+			ERR_PRINT(String("[GDLive2D] Failed to load expression file: ") + expression_path);
 			continue;
 		}
 
@@ -531,3 +535,75 @@ Live2DModelInstance::~Live2DModelInstance() {
 		memdelete(user_model);
 	}
 }
+
+Ref<PackedScene> Live2DModelInstance::create_packed_scene(const String &p_model_entry_path) {
+	Live2DModelInstance *instance = memnew(Live2DModelInstance(true));
+	instance->set_name(p_model_entry_path.get_base_dir().get_file());
+	instance->set_model_entry(p_model_entry_path);
+
+	// refuse to pack a hollow scene.
+	if (instance->get_model_entry().is_empty()) {
+		memdelete(instance);
+		ERR_PRINT(String("[GDLive2D] Failed to pack scene for: ") + p_model_entry_path);
+		return Ref<PackedScene>();
+	}
+
+	Ref<PackedScene> packed;
+	packed.instantiate();
+
+	const Error pack_err = packed->pack(instance);
+	memdelete(instance);
+
+	if (pack_err != OK) {
+		ERR_PRINT(String("[GDLive2D] Failed to pack scene for: ") + p_model_entry_path);
+		return Ref<PackedScene>();
+	}
+
+	return packed;
+}
+
+#ifdef GDEXTENSION
+Variant ResourceFormatLoaderLive2DModel::_load(const String &p_path, const String &p_original_path, bool p_use_sub_threads, int32_t p_cache_mode) const {
+	return Live2DModelInstance::create_packed_scene(p_path);
+}
+
+PackedStringArray ResourceFormatLoaderLive2DModel::_get_recognized_extensions() const {
+	PackedStringArray extensions;
+	extensions.push_back("model3.json");
+	return extensions;
+}
+
+bool ResourceFormatLoaderLive2DModel::_handles_type(const StringName &p_type) const {
+	return ClassDB::is_parent_class(p_type, "PackedScene");
+}
+
+String ResourceFormatLoaderLive2DModel::_get_resource_type(const String &p_path) const {
+	if (p_path.ends_with(".model3.json")) {
+		return "PackedScene";
+	}
+	return "";
+}
+#elif defined(GODOT_MODULE)
+Ref<Resource> ResourceFormatLoaderLive2DModel::load(const String &p_path, const String &p_original_path, Error *r_error, bool p_use_sub_threads, float *r_progress, CacheMode p_cache_mode) {
+	if (r_error) {
+		*r_error = ERR_FILE_UNRECOGNIZED;
+	}
+
+	return Live2DModelInstance::create_packed_scene(p_path);
+}
+
+void ResourceFormatLoaderLive2DModel::get_recognized_extensions(List<String> *p_extensions) const {
+	p_extensions->push_back("model3.json");
+}
+
+bool ResourceFormatLoaderLive2DModel::handles_type(const String &p_type) const {
+	return ClassDB::is_parent_class(p_type, "PackedScene");
+}
+
+String ResourceFormatLoaderLive2DModel::get_resource_type(const String &p_path) const {
+	if (p_path.ends_with(".model3.json")) {
+		return "PackedScene";
+	}
+	return "";
+}
+#endif

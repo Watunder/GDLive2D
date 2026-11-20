@@ -74,17 +74,9 @@ Error Live2DModelImporter::_import(const String &p_source_file, const String &p_
 		return ERR_FILE_UNRECOGNIZED;
 	}
 
-	Live2DModelInstance *instance = memnew(Live2DModelInstance(true));
-	instance->set_name(p_source_file.get_base_dir().get_file());
-	instance->set_model_entry(p_source_file);
-
-	Ref<PackedScene> packed;
-	packed.instantiate();
-	Error pack_err = packed->pack(instance);
-	memdelete(instance);
-	if (pack_err != OK) {
-		ERR_PRINT(String("[GDLive2D] failed to pack scene for: ") + p_source_file);
-		return pack_err;
+	Ref<PackedScene> packed = Live2DModelInstance::create_packed_scene(p_source_file);
+	if (packed.is_null()) {
+		return FAILED;
 	}
 
 	const String out_path = p_save_path + String(".") + _get_save_extension();
@@ -148,17 +140,9 @@ Error Live2DModelImporter::import(ResourceUID::ID p_source_id, const String &p_s
 		return ERR_FILE_UNRECOGNIZED;
 	}
 
-	Live2DModelInstance *instance = memnew(Live2DModelInstance(true));
-	instance->set_name(p_source_file.get_base_dir().get_file());
-	instance->set_model_entry(p_source_file);
-
-	Ref<PackedScene> packed;
-	packed.instantiate();
-	Error pack_err = packed->pack(instance);
-	memdelete(instance);
-	if (pack_err != OK) {
-		ERR_PRINT(vformat("[GDLive2D] failed to pack scene for: %s", p_source_file));
-		return pack_err;
+	Ref<PackedScene> packed = Live2DModelInstance::create_packed_scene(p_source_file);
+	if (packed.is_null()) {
+		return FAILED;
 	}
 
 	const String out_path = p_save_path + "." + get_save_extension();
