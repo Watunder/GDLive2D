@@ -39,9 +39,10 @@ static CubismAllocator _cubism_allocator;
 static Csm::CubismFramework::Option _cubism_option;
 
 static Ref<ResourceFormatLoaderLive2DMocFile> resource_format_loader_live2d_moc_file;
+// The editor import pipeline is not always reliable
+static Ref<ResourceFormatLoaderLive2DModel> resource_format_loader_live2d_model;
 static Ref<ResourceFormatLoaderLive2DMotion> resource_format_loader_live2d_motion;
 static Ref<ResourceFormatLoaderLive2DExpression> resource_format_loader_live2d_expression;
-static Ref<ResourceFormatLoaderLive2DModel> resource_format_loader_live2d_model;
 
 void initialize_live2d_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
@@ -87,28 +88,28 @@ void initialize_live2d_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(ResourceFormatLoaderLive2DModel);
 
 		resource_format_loader_live2d_moc_file.instantiate();
+		resource_format_loader_live2d_model.instantiate();
 		resource_format_loader_live2d_motion.instantiate();
 		resource_format_loader_live2d_expression.instantiate();
-		resource_format_loader_live2d_model.instantiate();
 #ifdef GDEXTENSION
 		ResourceLoader::get_singleton()->add_resource_format_loader(resource_format_loader_live2d_moc_file);
+		ResourceLoader::get_singleton()->add_resource_format_loader(resource_format_loader_live2d_model);
 		ResourceLoader::get_singleton()->add_resource_format_loader(resource_format_loader_live2d_motion);
 		ResourceLoader::get_singleton()->add_resource_format_loader(resource_format_loader_live2d_expression);
-		ResourceLoader::get_singleton()->add_resource_format_loader(resource_format_loader_live2d_model);
 #elif defined(GODOT_MODULE)
 		ResourceLoader::add_resource_format_loader(resource_format_loader_live2d_moc_file);
+		ResourceLoader::add_resource_format_loader(resource_format_loader_live2d_model);
 		ResourceLoader::add_resource_format_loader(resource_format_loader_live2d_motion);
 		ResourceLoader::add_resource_format_loader(resource_format_loader_live2d_expression);
-		ResourceLoader::add_resource_format_loader(resource_format_loader_live2d_model);
 #endif
 	}
 
 #ifdef TOOLS_ENABLED
 	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
 		GDREGISTER_CLASS(Live2DEditorPlugin);
+		GDREGISTER_CLASS(Live2DModelImporter);
 		GDREGISTER_CLASS(Live2DMotionImporter);
 		GDREGISTER_CLASS(Live2DExpressionImporter);
-		GDREGISTER_CLASS(Live2DModelImporter);
 		EditorPlugins::add_by_type<Live2DEditorPlugin>();
 	}
 #endif
@@ -122,19 +123,19 @@ void uninitialize_live2d_module(ModuleInitializationLevel p_level) {
 
 #ifdef GDEXTENSION
 		ResourceLoader::get_singleton()->remove_resource_format_loader(resource_format_loader_live2d_moc_file);
+		ResourceLoader::get_singleton()->remove_resource_format_loader(resource_format_loader_live2d_model);
 		ResourceLoader::get_singleton()->remove_resource_format_loader(resource_format_loader_live2d_motion);
 		ResourceLoader::get_singleton()->remove_resource_format_loader(resource_format_loader_live2d_expression);
-		ResourceLoader::get_singleton()->remove_resource_format_loader(resource_format_loader_live2d_model);
 #elif defined(GODOT_MODULE)
 		ResourceLoader::remove_resource_format_loader(resource_format_loader_live2d_moc_file);
+		ResourceLoader::remove_resource_format_loader(resource_format_loader_live2d_model);
 		ResourceLoader::remove_resource_format_loader(resource_format_loader_live2d_motion);
 		ResourceLoader::remove_resource_format_loader(resource_format_loader_live2d_expression);
-		ResourceLoader::remove_resource_format_loader(resource_format_loader_live2d_model);
 #endif
 		resource_format_loader_live2d_moc_file.unref();
+		resource_format_loader_live2d_model.unref();
 		resource_format_loader_live2d_motion.unref();
 		resource_format_loader_live2d_expression.unref();
-		resource_format_loader_live2d_model.unref();
 	}
 
 #ifdef TOOLS_ENABLED

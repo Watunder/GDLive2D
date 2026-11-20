@@ -541,7 +541,7 @@ Ref<PackedScene> Live2DModelInstance::create_packed_scene(const String &p_model_
 	instance->set_name(p_model_entry_path.get_base_dir().get_file());
 	instance->set_model_entry(p_model_entry_path);
 
-	// refuse to pack a hollow scene.
+	// Refuse to pack hollow scenes
 	if (instance->get_model_entry().is_empty()) {
 		memdelete(instance);
 		ERR_PRINT(String("[GDLive2D] Failed to pack scene for: ") + p_model_entry_path);

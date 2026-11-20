@@ -18,7 +18,7 @@ using namespace godot;
 
 #include <Rendering/CubismClippingManager.tpp>
 
-// make the building pass
+// Stub implementation
 void Csm::Rendering::CubismRenderer::StaticRelease() {}
 
 using DrawableObjectType = Csm::Rendering::CubismRenderer::DrawableObjectType;
@@ -590,7 +590,7 @@ void Live2DRenderer::update_masks() {
 }
 
 void Live2DRenderer::update_model() {
-	// masks must exist before objects so the material can be chosen.
+	// Masks must be built before drawables for material selection
 	_build_masks();
 	_build_drawables();
 }

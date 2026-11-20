@@ -21,7 +21,7 @@ private:
 	float fade_in_time = 1.0f;
 	float fade_out_time = 1.0f;
 
-	// the "Blend" parameter (Add/Multiply/Overwrite)
+	// The "Blend" parameter (Add/Multiply/Overwrite)
 	Dictionary blend_modes;
 
 	void _from_dict(const Dictionary &p_dict);

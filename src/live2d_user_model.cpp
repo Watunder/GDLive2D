@@ -287,7 +287,7 @@ void Live2DUserModel::update(float p_delta_time) {
 
 	const Csm::csmFloat32 dt = p_delta_time;
 
-	// the dragging does nothing right now
+	// Dragging has no effect
 	drag_manager->Update(dt);
 
 	drag_x = drag_manager->GetX();
