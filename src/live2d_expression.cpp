@@ -13,6 +13,10 @@ void Live2DExpression::_from_dict(const Dictionary &p_dict) {
 		remove_track(get_track_count() - 1);
 	}
 
+	fade_in_time = static_cast<float>(static_cast<double>(p_dict.get("FadeInTime", 1.0)));
+	fade_out_time = static_cast<float>(static_cast<double>(p_dict.get("FadeOutTime", 1.0)));
+	blend_modes.clear();
+
 	set_loop_mode(Animation::LOOP_NONE);
 
 	Array parameters;
@@ -31,16 +35,37 @@ void Live2DExpression::_from_dict(const Dictionary &p_dict) {
 			continue;
 		}
 
+		blend_modes[id] = param.get("Blend", "Add");
+
 		const NodePath path = NodePath(vformat(".:%s", id));
 
 		const int32_t track_index = add_track(Animation::TYPE_VALUE);
 		track_set_path(track_index, path);
 		value_track_set_update_mode(track_index, Animation::UPDATE_CONTINUOUS);
 
-		const int32_t value = static_cast<int32_t>(param.get("Value", 0));
+		const double value = static_cast<double>(param.get("Value", 0.0));
 
 		track_insert_key(track_index, 0.0, value);
 	}
+
+	if (!parameters.is_empty()) {
+		const int32_t method_track = add_track(Animation::TYPE_METHOD);
+		track_set_path(method_track, NodePath("."));
+		track_insert_key(method_track, 0.0, _make_start_key());
+	}
+}
+
+Dictionary Live2DExpression::_make_start_key() const {
+	Array args;
+	args.push_back(path_to_file);
+	args.push_back(fade_in_time);
+	args.push_back(fade_out_time);
+	args.push_back(blend_modes.duplicate());
+
+	Dictionary key;
+	key["method"] = String("_on_live2d_animation_start");
+	key["args"] = args;
+	return key;
 }
 
 void Live2DExpression::_bind_methods() {

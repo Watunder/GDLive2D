@@ -15,7 +15,14 @@ class Live2DExpression : public Animation {
 private:
 	String path_to_file;
 
+	float fade_in_time = 1.0f;
+	float fade_out_time = 1.0f;
+
+	// the "Blend" parameter (Add/Multiply/Overwrite)
+	Dictionary blend_modes;
+
 	void _from_dict(const Dictionary &p_dict);
+	Dictionary _make_start_key() const;
 
 protected:
 	static void _bind_methods();

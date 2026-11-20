@@ -15,15 +15,24 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 
 	set_length(0.0);
 	set_loop_mode(Animation::LOOP_NONE);
+	fade_in_time = 1.0f;
+	fade_out_time = 1.0f;
+
+	double duration = 0.0;
+	bool is_loop = false;
 
 	const Dictionary meta = p_dict.get("Meta", Dictionary());
 	if (!meta.is_empty()) {
-		set_length(static_cast<double>(meta.get("Duration", 0.0)));
-		set_loop_mode(static_cast<bool>(meta.get("Loop", false)) ? Animation::LOOP_LINEAR : Animation::LOOP_NONE);
+		duration = static_cast<double>(meta.get("Duration", 0.0));
+		is_loop = static_cast<bool>(meta.get("Loop", false));
+		fade_in_time = static_cast<float>(static_cast<double>(meta.get("FadeInTime", 1.0)));
+		fade_out_time = static_cast<float>(static_cast<double>(meta.get("FadeOutTime", 1.0)));
+		set_loop_mode(is_loop ? Animation::LOOP_LINEAR : Animation::LOOP_NONE);
 	}
 
 	const Array curves = p_dict.get("Curves", Array());
 	if (curves.is_empty()) {
+		set_length(duration);
 		return;
 	}
 
@@ -34,15 +43,9 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 
 		const Dictionary curve = curves[ci];
 		const String id = curve.get("Id", "");
-		const Array segments = curve.get("Segments", Array());
-		if (id.is_empty() || segments.is_empty()) {
-			continue;
-		}
 		const String target = curve.get("Target", "");
-		if (target.is_empty()) {
-			continue;
-		}
-		if (segments.size() < 2) {
+		const Array segments = curve.get("Segments", Array());
+		if (id.is_empty() || target.is_empty() || segments.size() < 2) {
 			continue;
 		}
 
@@ -54,12 +57,20 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 		int32_t si = 0;
 		double current_time = static_cast<double>(segments[si++]);
 		double current_value = static_cast<double>(segments[si++]);
+
 		int32_t previous_key_index = bezier_track_insert_key(track_index, current_time, current_value, Vector2(0, 0), Vector2(0, 0));
+
+		auto connect_linear = [&](int32_t p_from_key, double p_from_time, double p_from_value, int32_t p_to_key, double p_to_time, double p_to_value) {
+			const double dt = p_to_time - p_from_time;
+			const double dv = p_to_value - p_from_value;
+			bezier_track_set_key_out_handle(track_index, p_from_key, Vector2(dt / 3.0, dv / 3.0));
+			bezier_track_set_key_in_handle(track_index, p_to_key, Vector2(-dt / 3.0, -dv / 3.0));
+		};
 
 		while (si < segments.size()) {
 			const int32_t segment_type = static_cast<int32_t>(segments[si++]);
 			switch (segment_type) {
-				case 0: {
+				case 0: { // Linear
 					if (si + 1 >= segments.size()) {
 						si = segments.size();
 						break;
@@ -67,17 +78,13 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 					const double end_time = static_cast<double>(segments[si++]);
 					const double end_value = static_cast<double>(segments[si++]);
 					const int32_t end_key_index = bezier_track_insert_key(track_index, end_time, end_value, Vector2(0, 0), Vector2(0, 0));
-
-					const double dt = end_time - current_time;
-					const double dv = end_value - current_value;
-					bezier_track_set_key_out_handle(track_index, previous_key_index, Vector2(dt / 3.0, dv / 3.0));
-					bezier_track_set_key_in_handle(track_index, end_key_index, Vector2(-dt / 3.0, -dv / 3.0));
+					connect_linear(previous_key_index, current_time, current_value, end_key_index, end_time, end_value);
 
 					current_time = end_time;
 					current_value = end_value;
 					previous_key_index = end_key_index;
 				} break;
-				case 1: {
+				case 1: { // Bezier
 					if (si + 5 >= segments.size()) {
 						si = segments.size();
 						break;
@@ -97,31 +104,54 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 					current_value = end_value;
 					previous_key_index = end_key_index;
 				} break;
-				case 2:
-				case 3: {
+				case 2: { // Stepped
 					if (si + 1 >= segments.size()) {
 						si = segments.size();
 						break;
 					}
 					const double end_time = static_cast<double>(segments[si++]);
 					const double end_value = static_cast<double>(segments[si++]);
+					const double dt = end_time - current_time;
 
-					if (end_time > current_time) {
-						const double hold_time = end_time - MIN(0.001, (end_time - current_time) * 0.5);
+					if (dt > 0.0) {
+						const double hold_time = end_time - MIN(0.001, dt * 0.5);
 						if (hold_time > current_time) {
 							const int32_t hold_key_index = bezier_track_insert_key(track_index, hold_time, current_value, Vector2(0, 0), Vector2(0, 0));
-							const double hold_dt = hold_time - current_time;
-							bezier_track_set_key_out_handle(track_index, previous_key_index, Vector2(hold_dt / 3.0, 0.0));
-							bezier_track_set_key_in_handle(track_index, hold_key_index, Vector2(-hold_dt / 3.0, 0.0));
+							connect_linear(previous_key_index, current_time, current_value, hold_key_index, hold_time, current_value);
 							previous_key_index = hold_key_index;
+							current_time = hold_time;
 						}
 					}
 
 					const int32_t end_key_index = bezier_track_insert_key(track_index, end_time, end_value, Vector2(0, 0), Vector2(0, 0));
+					bezier_track_set_key_out_handle(track_index, previous_key_index, Vector2(0, 0));
+					bezier_track_set_key_in_handle(track_index, end_key_index, Vector2(0, 0));
+
+					current_time = end_time;
+					current_value = end_value;
+					previous_key_index = end_key_index;
+				} break;
+				case 3: { // InverseStepped
+					if (si + 1 >= segments.size()) {
+						si = segments.size();
+						break;
+					}
+					const double end_time = static_cast<double>(segments[si++]);
+					const double end_value = static_cast<double>(segments[si++]);
 					const double dt = end_time - current_time;
-					const double dv = end_value - current_value;
-					bezier_track_set_key_out_handle(track_index, previous_key_index, Vector2(dt / 3.0, dv / 3.0));
-					bezier_track_set_key_in_handle(track_index, end_key_index, Vector2(-dt / 3.0, -dv / 3.0));
+
+					if (dt > 0.0) {
+						const double jump_time = current_time + MIN(0.001, dt * 0.5);
+						const int32_t jump_key_index = bezier_track_insert_key(track_index, jump_time, end_value, Vector2(0, 0), Vector2(0, 0));
+						bezier_track_set_key_out_handle(track_index, previous_key_index, Vector2(0, 0));
+						bezier_track_set_key_in_handle(track_index, jump_key_index, Vector2(0, 0));
+						previous_key_index = jump_key_index;
+						current_time = jump_time;
+						current_value = end_value;
+					}
+
+					const int32_t end_key_index = bezier_track_insert_key(track_index, end_time, end_value, Vector2(0, 0), Vector2(0, 0));
+					connect_linear(previous_key_index, current_time, current_value, end_key_index, end_time, end_value);
 
 					current_time = end_time;
 					current_value = end_value;
@@ -133,6 +163,26 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 			}
 		}
 	}
+
+	set_length(duration);
+
+	const int32_t method_track = add_track(Animation::TYPE_METHOD);
+	track_set_path(method_track, NodePath("."));
+	track_insert_key(method_track, 0.0, _make_start_key());
+}
+
+Dictionary Live2DMotion::_make_start_key() const {
+	Array args;
+	args.push_back(path_to_file);
+	args.push_back(fade_in_time);
+	args.push_back(fade_out_time);
+	// there is no "Blend" parameter for Motions
+	args.push_back(Dictionary());
+
+	Dictionary key;
+	key["method"] = String("_on_live2d_animation_start");
+	key["args"] = args;
+	return key;
 }
 
 void Live2DMotion::_bind_methods() {

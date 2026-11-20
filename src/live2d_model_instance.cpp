@@ -176,6 +176,9 @@ void Live2DModelInstance::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "model_entry", PROPERTY_HINT_FILE, "*.model3.json"), "set_model_entry", "get_model_entry");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "moc_file", PROPERTY_HINT_RESOURCE_TYPE, "Live2DMocFile", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_READ_ONLY), "", "get_moc_file");
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "textures", PROPERTY_HINT_ARRAY_TYPE, "Texture2D", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_READ_ONLY), "", "get_textures");
+
+	ClassDB::bind_method(D_METHOD("_on_live2d_animation_start", "animation_path", "fade_in_time", "fade_out_time", "blend"), &Live2DModelInstance::_on_live2d_animation_start);
+	ADD_SIGNAL(MethodInfo("live2d_animation_started", PropertyInfo(Variant::STRING, "animation_path"), PropertyInfo(Variant::FLOAT, "fade_in_time"), PropertyInfo(Variant::FLOAT, "fade_out_time"), PropertyInfo(Variant::DICTIONARY, "blend")));
 }
 
 void Live2DModelInstance::_setup_moc_file(const String &p_model_dir) {
@@ -237,7 +240,6 @@ void Live2DModelInstance::_setup_textures(const String &p_model_dir) {
 void Live2DModelInstance::_update_animation_player(const String &p_model_dir) {
 	ERR_FAIL_COND(!user_model);
 
-	AnimationPlayer *animation_player = nullptr;
 	for (int32_t i = get_child_count() - 1; i >= 0; --i) {
 		Node *child = get_child(i);
 		if (Object::cast_to<AnimationPlayer>(child)) {
@@ -444,6 +446,12 @@ bool Live2DModelInstance::_set(const StringName &p_name, const Variant &p_value)
 		return true;
 	}
 
+	if (key == "Opacity") {
+		const float v = CLAMP(p_value.operator float(), 0.0f, 1.0f);
+		user_model->set_model_opacity(v);
+		return true;
+	}
+
 	return false;
 }
 
@@ -464,10 +472,18 @@ bool Live2DModelInstance::_get(const StringName &p_name, Variant &r_ret) const {
 		return true;
 	}
 
+	if (key == "Opacity") {
+		r_ret = user_model->get_model_opacity();
+		return true;
+	}
+
 	return false;
 }
 
 void Live2DModelInstance::_get_property_list(List<PropertyInfo> *p_list) const {
+	p_list->push_back(PropertyInfo(Variant::NIL, "Model", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP));
+	p_list->push_back(PropertyInfo(Variant::FLOAT, "Opacity", PROPERTY_HINT_RANGE, "0.0,1.0,0.001,or_less,or_greater"));
+
 	p_list->push_back(PropertyInfo(Variant::NIL, "Parameter", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP));
 	for (const String &parameter_id : parameter_ids) {
 		float min_v = -1.0f;
@@ -483,6 +499,10 @@ void Live2DModelInstance::_get_property_list(List<PropertyInfo> *p_list) const {
 	for (const String &part_id : part_ids) {
 		p_list->push_back(PropertyInfo(Variant::FLOAT, part_id, PROPERTY_HINT_RANGE, "0.0,1.0,0.001,or_less,or_greater"));
 	}
+}
+
+void Live2DModelInstance::_on_live2d_animation_start(const String &p_animation_path, float p_fade_in_time, float p_fade_out_time, const Dictionary &p_blend) {
+	emit_signal("live2d_animation_started", p_animation_path, p_fade_in_time, p_fade_out_time, p_blend);
 }
 
 Live2DModelInstance::Live2DModelInstance(bool p_is_importing) {

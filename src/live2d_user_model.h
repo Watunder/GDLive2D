@@ -66,9 +66,7 @@ private:
 
 	bool initialized = false;
 	bool updating = false;
-	bool lip_sync = true;
 
-	float opacity = 1.0f;
 	float drag_x = 0.0f;
 	float drag_y = 0.0f;
 
@@ -112,8 +110,13 @@ public:
 	void draw(Csm::CubismMatrix44 &p_matrix);
 
 	void get_model_parameter_ids(PackedStringArray &r_parameter_ids) const;
+
 	void set_model_parameter_value(const String &p_parameter_id, float p_value);
 	float get_model_parameter_value(const String &p_parameter_id) const;
+
+	void set_model_opacity(float p_opacity);
+	float get_model_opacity() const;
+
 	bool get_model_parameter_range(const String &p_parameter_id, float &r_min, float &r_max) const;
 	float get_model_parameter_default_value(const String &p_parameter_id) const;
 

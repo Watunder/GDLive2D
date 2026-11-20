@@ -15,7 +15,11 @@ class Live2DMotion : public Animation {
 private:
 	String path_to_file;
 
+	float fade_in_time = 1.0f;
+	float fade_out_time = 1.0f;
+
 	void _from_dict(const Dictionary &p_dict);
+	Dictionary _make_start_key() const;
 
 protected:
 	static void _bind_methods();

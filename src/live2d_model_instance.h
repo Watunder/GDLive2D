@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef GDEXTENSION
+#include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/node2d.hpp>
 #include <godot_cpp/classes/sub_viewport.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
@@ -9,6 +10,7 @@ using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/variant/variant.h"
 #include "scene/2d/node_2d.h"
+#include "scene/animation/animation_player.h"
 #include "scene/main/viewport.h"
 #include "scene/resources/texture.h"
 #endif
@@ -22,6 +24,7 @@ class Live2DModelInstance : public Node2D {
 private:
 	Live2DUserModel *user_model = nullptr;
 
+	AnimationPlayer *animation_player = nullptr;
 	SubViewport *mask_viewport = nullptr;
 	Node2D *mask_container = nullptr;
 
@@ -52,6 +55,8 @@ protected:
 	bool _set(const StringName &p_name, const Variant &p_value);
 	bool _get(const StringName &p_name, Variant &r_ret) const;
 	void _get_property_list(List<PropertyInfo> *p_list) const;
+
+	void _on_live2d_animation_start(const String &p_animation_path, float p_fade_in_time, float p_fade_out_time, const Dictionary &p_blend);
 
 public:
 	void set_model_entry(const String &p_model_entry_path);

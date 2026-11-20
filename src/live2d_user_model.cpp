@@ -144,6 +144,16 @@ void Live2DUserModel::load_setting_json(const String &p_json_path) {
 	}
 
 	setting_json = memnew(Csm::CubismModelSettingJson(json_buffer.ptr(), json_buffer.size()));
+
+	if (setting_json->GetHitAreasCount() > 0) {
+		WARN_PRINT_ONCE("[GDLive2D] The HitTest feature is not implemented.");
+	}
+	if (setting_json->GetEyeBlinkParameterCount() > 0) {
+		WARN_PRINT_ONCE("[GDLive2D] The EyeBlink feature is not implemented.");
+	}
+	if (setting_json->GetLipSyncParameterCount() > 0) {
+		WARN_PRINT_ONCE("[GDLive2D] The LipSync feature is not implemented.");
+	}
 }
 
 void Live2DUserModel::load_model_from_moc3(const PackedByteArray &p_moc_data) {
@@ -277,8 +287,7 @@ void Live2DUserModel::update(float p_delta_time) {
 
 	const Csm::csmFloat32 dt = p_delta_time;
 
-	opacity = model->GetModelOpacity();
-
+	// the dragging does nothing right now
 	drag_manager->Update(dt);
 
 	drag_x = drag_manager->GetX();
@@ -296,9 +305,6 @@ void Live2DUserModel::update(float p_delta_time) {
 	}
 	if (physics != nullptr) {
 		physics->Evaluate(model, dt);
-	}
-	if (lip_sync) {
-		WARN_PRINT_ONCE("[GDLive2D] The lipSync feature is not implemented right now.");
 	}
 	if (pose != nullptr) {
 		pose->UpdateParameters(model, dt);
@@ -356,6 +362,22 @@ void Live2DUserModel::set_model_parameter_value(const String &p_parameter_id, fl
 	}
 
 	model->SetParameterValue(id, p_value);
+}
+
+void Live2DUserModel::set_model_opacity(float p_opacity) {
+	if (!model) {
+		return;
+	}
+
+	model->SetModelOpacity(p_opacity);
+}
+
+float Live2DUserModel::get_model_opacity() const {
+	if (!model) {
+		return 1.0f;
+	}
+
+	return model->GetModelOpacity();
 }
 
 float Live2DUserModel::get_model_parameter_value(const String &p_parameter_id) const {
