@@ -176,9 +176,6 @@ void Live2DModelInstance::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "model_entry", PROPERTY_HINT_FILE, "*.model3.json"), "set_model_entry", "get_model_entry");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "moc_file", PROPERTY_HINT_RESOURCE_TYPE, "Live2DMocFile", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_READ_ONLY), "", "get_moc_file");
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "textures", PROPERTY_HINT_ARRAY_TYPE, "Texture2D", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_READ_ONLY), "", "get_textures");
-
-	ClassDB::bind_method(D_METHOD("_on_live2d_animation_start", "animation_path", "fade_in_time", "fade_out_time", "blend"), &Live2DModelInstance::_on_live2d_animation_start);
-	ADD_SIGNAL(MethodInfo("live2d_animation_started", PropertyInfo(Variant::STRING, "animation_path"), PropertyInfo(Variant::FLOAT, "fade_in_time"), PropertyInfo(Variant::FLOAT, "fade_out_time"), PropertyInfo(Variant::DICTIONARY, "blend")));
 }
 
 void Live2DModelInstance::_setup_moc_file(const String &p_model_dir) {
@@ -290,6 +287,7 @@ void Live2DModelInstance::_update_animation_player(const String &p_model_dir) {
 
 			Ref<Live2DMotion> motion = res;
 			if (motion.is_null()) {
+				ERR_PRINT_ED(String("[GDLive2D] Motion file failed to load: ") + motion_path);
 				continue;
 			}
 			library->add_animation(animation_name, motion);
@@ -313,6 +311,7 @@ void Live2DModelInstance::_update_animation_player(const String &p_model_dir) {
 
 		Ref<Live2DExpression> expression = res;
 		if (expression.is_null()) {
+			ERR_PRINT_ED(String("[GDLive2D] Expression file failed to load: ") + expression_path);
 			continue;
 		}
 
@@ -499,10 +498,6 @@ void Live2DModelInstance::_get_property_list(List<PropertyInfo> *p_list) const {
 	for (const String &part_id : part_ids) {
 		p_list->push_back(PropertyInfo(Variant::FLOAT, part_id, PROPERTY_HINT_RANGE, "0.0,1.0,0.001,or_less,or_greater"));
 	}
-}
-
-void Live2DModelInstance::_on_live2d_animation_start(const String &p_animation_path, float p_fade_in_time, float p_fade_out_time, const Dictionary &p_blend) {
-	emit_signal("live2d_animation_started", p_animation_path, p_fade_in_time, p_fade_out_time, p_blend);
 }
 
 Live2DModelInstance::Live2DModelInstance(bool p_is_importing) {

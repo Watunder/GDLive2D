@@ -165,31 +165,17 @@ void Live2DMotion::_from_dict(const Dictionary &p_dict) {
 	}
 
 	set_length(duration);
-
-	const int32_t method_track = add_track(Animation::TYPE_METHOD);
-	track_set_path(method_track, NodePath("."));
-	track_insert_key(method_track, 0.0, _make_start_key());
-}
-
-Dictionary Live2DMotion::_make_start_key() const {
-	Array args;
-	args.push_back(path_to_file);
-	args.push_back(fade_in_time);
-	args.push_back(fade_out_time);
-	// there is no "Blend" parameter for Motions
-	args.push_back(Dictionary());
-
-	Dictionary key;
-	key["method"] = String("_on_live2d_animation_start");
-	key["args"] = args;
-	return key;
 }
 
 void Live2DMotion::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_load_path"), &Live2DMotion::get_load_path);
 	ClassDB::bind_method(D_METHOD("load", "path"), &Live2DMotion::load);
+	ClassDB::bind_method(D_METHOD("get_fade_in_time"), &Live2DMotion::get_fade_in_time);
+	ClassDB::bind_method(D_METHOD("get_fade_out_time"), &Live2DMotion::get_fade_out_time);
 
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "load_path", PROPERTY_HINT_FILE, "*.motion3.json"), "load", "get_load_path");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fade_in_time"), "", "get_fade_in_time");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fade_out_time"), "", "get_fade_out_time");
 }
 
 String Live2DMotion::get_load_path() const {

@@ -56,8 +56,6 @@ protected:
 	bool _get(const StringName &p_name, Variant &r_ret) const;
 	void _get_property_list(List<PropertyInfo> *p_list) const;
 
-	void _on_live2d_animation_start(const String &p_animation_path, float p_fade_in_time, float p_fade_out_time, const Dictionary &p_blend);
-
 public:
 	void set_model_entry(const String &p_model_entry_path);
 	String get_model_entry() const;

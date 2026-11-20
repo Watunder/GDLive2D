@@ -19,7 +19,6 @@ private:
 	float fade_out_time = 1.0f;
 
 	void _from_dict(const Dictionary &p_dict);
-	Dictionary _make_start_key() const;
 
 protected:
 	static void _bind_methods();
@@ -27,4 +26,7 @@ protected:
 public:
 	Error load(String p_path);
 	String get_load_path() const;
+
+	float get_fade_in_time() const { return fade_in_time; }
+	float get_fade_out_time() const { return fade_out_time; }
 };
