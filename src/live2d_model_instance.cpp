@@ -1,17 +1,37 @@
 #include "live2d_model_instance.h"
 
 #ifdef GDEXTENSION
+#include <godot_cpp/classes/animation_library.hpp>
+#include <godot_cpp/classes/animation_player.hpp>
+#include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/json.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/resource_uid.hpp>
+#include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/viewport_texture.hpp>
+#include <godot_cpp/classes/world2d.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/config/project_settings.h"
+#include "core/io/file_access.h"
+#include "core/io/json.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_uid.h"
+#include "scene/animation/animation_player.h"
+#include "scene/main/scene_tree.h"
+#include "scene/main/viewport.h"
+#include "scene/resources/animation_library.h"
+#include "scene/resources/packed_scene.h"
 #include "scene/resources/texture.h"
+#include "scene/resources/world_2d.h"
 #endif
+
+#include "live2d_expression.h"
+#include "live2d_motion.h"
+#include "live2d_renderer.h"
 
 #include <CubismModelSettingJson.hpp>
 #include <Math/CubismModelMatrix.hpp>
@@ -31,13 +51,105 @@ static String _get_rel_dir(const char *p_cstr) {
 	return s;
 }
 
+static bool _part_id_in_pose_group(const Vector<PackedStringArray> &p_pose_groups, const String &p_part_id, int32_t *r_group_index = nullptr, int32_t *r_member_index = nullptr) {
+	for (int32_t gi = 0; gi < p_pose_groups.size(); ++gi) {
+		const PackedStringArray &g = p_pose_groups[gi];
+		for (int32_t mi = 0; mi < g.size(); ++mi) {
+			if (g[mi] == p_part_id) {
+				if (r_group_index) {
+					*r_group_index = gi;
+				}
+				if (r_member_index) {
+					*r_member_index = mi;
+				}
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void Live2DModelInstance::_update_model_properties() {
+	parameter_ids.clear();
+	part_ids.clear();
+
+	if (!user_model || !user_model->get_model()) {
+		notify_property_list_changed();
+		return;
+	}
+
+	user_model->get_model_parameter_ids(parameter_ids);
+	user_model->get_model_part_ids(part_ids);
+
+	notify_property_list_changed();
+}
+
+void Live2DModelInstance::_setup_pose_groups(const String &p_model_dir) {
+	pose_groups.clear();
+
+	if (!user_model) {
+		return;
+	}
+
+	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
+	if (!setting) {
+		return;
+	}
+
+	const String pose_file = String::utf8(setting->GetPoseFileName());
+	if (pose_file.is_empty()) {
+		return;
+	}
+
+	const String pose_content = FileAccess::get_file_as_string(p_model_dir.path_join(pose_file));
+	if (pose_content.is_empty()) {
+		return;
+	}
+
+	const Variant parsed = JSON::parse_string(pose_content);
+	if (parsed.get_type() != Variant::DICTIONARY) {
+		return;
+	}
+	const Dictionary pose_dict = parsed;
+
+	const Array groups = pose_dict.get("Groups", Array());
+	for (int32_t gi = 0; gi < groups.size(); ++gi) {
+		if (groups[gi].get_type() != Variant::ARRAY) {
+			continue;
+		}
+		const Array group = groups[gi];
+		if (group.size() < 2) {
+			continue;
+		}
+		PackedStringArray linked_parts;
+		for (int32_t pi = 0; pi < group.size(); ++pi) {
+			if (group[pi].get_type() != Variant::DICTIONARY) {
+				continue;
+			}
+			const Dictionary part = group[pi];
+			const String part_id = part.get("Id", "");
+			if (!part_id.is_empty()) {
+				linked_parts.push_back(part_id);
+			}
+		}
+		if (linked_parts.size() < 2) {
+			continue;
+		}
+		pose_groups.push_back(linked_parts);
+	}
+}
+
 void Live2DModelInstance::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_PROCESS: {
 			ERR_BREAK(!user_model);
 
-			const float delta = static_cast<float>(get_process_delta_time());
-			user_model->Update(delta);
+			const float delta = get_process_delta_time();
+			user_model->update(delta);
+
+			Csm::CubismMatrix44 mask_projection;
+			_update_projection(mask_projection);
+			user_model->update_masks(mask_projection);
 
 			queue_redraw();
 		} break;
@@ -48,7 +160,7 @@ void Live2DModelInstance::_notification(int p_what) {
 			Csm::CubismMatrix44 projection;
 			_update_projection(projection);
 
-			user_model->Draw(projection);
+			user_model->draw(projection);
 		} break;
 
 		default:
@@ -71,7 +183,7 @@ void Live2DModelInstance::_bind_methods() {
 void Live2DModelInstance::_setup_moc_file(const String &p_model_dir) {
 	ERR_FAIL_COND(!user_model);
 
-	Csm::CubismModelSettingJson *setting = user_model->GetSettingJson();
+	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
 	ERR_FAIL_COND(!setting);
 
 	const String moc_path = p_model_dir.path_join(setting->GetModelFileName());
@@ -84,18 +196,18 @@ void Live2DModelInstance::_setup_moc_file(const String &p_model_dir) {
 
 	moc_file = res;
 	if (moc_file.is_null()) {
-		ERR_PRINT_ED(String("[GDLive2D] Moc file failed to load: ") + moc_path);
+		ERR_PRINT(String("[GDLive2D] Failed to load moc file: ") + moc_path);
 		return;
 	}
 
 	PackedByteArray moc_data = moc_file->get_data();
-	user_model->LoadModelFromMoc3(moc_data.ptr(), moc_data.size());
+	user_model->load_model_from_moc3(moc_data);
 }
 
 void Live2DModelInstance::_setup_textures(const String &p_model_dir) {
 	ERR_FAIL_COND(!user_model);
 
-	Csm::CubismModelSettingJson *setting = user_model->GetSettingJson();
+	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
 	ERR_FAIL_COND(!setting);
 
 	const int32_t tex_count = setting->GetTextureCount();
@@ -115,16 +227,108 @@ void Live2DModelInstance::_setup_textures(const String &p_model_dir) {
 
 		const Ref<Texture2D> tex = res;
 		if (tex.is_null()) {
-			ERR_PRINT_ED("[GDLive2D] Texture failed to load: " + tex_path);
+			ERR_PRINT("[GDLive2D] Failed to load texture: " + tex_path);
 			continue;
 		}
 
-		user_model->BindTexture(i, tex->get_rid().get_id());
 		textures.push_back(tex);
 	}
 }
 
-// refer to Camera2D::_get_camera_screen_size
+void Live2DModelInstance::_update_animation_player(const String &p_model_dir) {
+	ERR_FAIL_COND(!user_model);
+
+	for (int32_t i = get_child_count() - 1; i >= 0; --i) {
+		Node *child = get_child(i);
+		if (Object::cast_to<AnimationPlayer>(child)) {
+			animation_player = Object::cast_to<AnimationPlayer>(child);
+		}
+	}
+	if (!animation_player) {
+		animation_player = memnew(AnimationPlayer);
+		animation_player->set_name("AnimationPlayer");
+		add_child(animation_player);
+		Node *owner = get_owner();
+		if (!owner) {
+			owner = this;
+		}
+		if (is_inside_tree()) {
+			SceneTree *tree = get_tree();
+			if (tree) {
+				Node *edited_scene_root = tree->get_edited_scene_root();
+				if (edited_scene_root && (edited_scene_root == this || edited_scene_root->is_ancestor_of(this))) {
+					owner = edited_scene_root;
+				}
+			}
+		}
+		animation_player->set_owner(owner);
+	}
+	ERR_FAIL_COND(!animation_player);
+
+	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
+	ERR_FAIL_COND(!setting);
+
+	Ref<AnimationLibrary> library;
+	library.instantiate();
+
+	String default_animation_name;
+
+	for (Csm::csmInt32 i = 0; i < setting->GetMotionGroupCount(); ++i) {
+		const Csm::csmChar *group = setting->GetMotionGroupName(i);
+		const String group_name = String::utf8(group);
+		for (Csm::csmInt32 j = 0; j < setting->GetMotionCount(group); ++j) {
+			const String motion_path = p_model_dir.path_join(String::utf8(setting->GetMotionFileName(group, j)));
+			const String animation_name = vformat("%s_%d", group_name, j);
+
+#ifdef GDEXTENSION
+			Ref<Resource> res = ResourceLoader::get_singleton()->load(motion_path, "Live2DMotion");
+#elif defined(GODOT_MODULE)
+			Ref<Resource> res = ResourceLoader::load(motion_path, "Live2DMotion");
+#endif
+
+			Ref<Live2DMotion> motion = res;
+			if (motion.is_null()) {
+				ERR_PRINT(String("[GDLive2D] Failed to load motion file: ") + motion_path);
+				continue;
+			}
+			library->add_animation(animation_name, motion);
+
+			if (default_animation_name.is_empty() || animation_name.begins_with("idle_")) {
+				default_animation_name = animation_name;
+			}
+		}
+	}
+
+	for (Csm::csmInt32 i = 0; i < setting->GetExpressionCount(); ++i) {
+		const String expression_path = p_model_dir.path_join(String::utf8(setting->GetExpressionFileName(i)));
+		const String expression_name = String::utf8(setting->GetExpressionName(i));
+		const String animation_name = expression_name;
+
+#ifdef GDEXTENSION
+		Ref<Resource> res = ResourceLoader::get_singleton()->load(expression_path, "Live2DExpression");
+#elif defined(GODOT_MODULE)
+		Ref<Resource> res = ResourceLoader::load(expression_path, "Live2DExpression");
+#endif
+
+		Ref<Live2DExpression> expression = res;
+		if (expression.is_null()) {
+			ERR_PRINT(String("[GDLive2D] Failed to load expression file: ") + expression_path);
+			continue;
+		}
+
+		library->add_animation(animation_name, expression);
+	}
+
+	if (animation_player->has_animation_library(StringName())) {
+		animation_player->remove_animation_library(StringName());
+	}
+
+	animation_player->add_animation_library(StringName(), library);
+	if (!default_animation_name.is_empty()) {
+		animation_player->set_autoplay(default_animation_name);
+	}
+}
+
 Size2 Live2DModelInstance::_get_screen_size() {
 	if (is_part_of_edited_scene()) {
 #ifdef GDEXTENSION
@@ -139,14 +343,14 @@ Size2 Live2DModelInstance::_get_screen_size() {
 void Live2DModelInstance::_update_projection(Csm::CubismMatrix44 &r_projection) {
 	ERR_FAIL_COND(!user_model);
 
-	const CubismUserModelExtend::CanvasInfo canvas_info = user_model->GetModelCanvasInfo();
+	const Live2DUserModel::CanvasInfo canvas_info = user_model->get_model_canvas_info();
 	const Vector2 screen_size = _get_screen_size();
 
 	float model_scale = 1.0f;
 
-	if (!Math::is_zero_approx(canvas_info.pixelsPerUnit) && !screen_size.is_zero_approx()) {
-		float canvas_width = canvas_info.sizeInPixels.X / canvas_info.pixelsPerUnit;
-		float canvas_height = canvas_info.sizeInPixels.Y / canvas_info.pixelsPerUnit;
+	if (!Math::is_zero_approx(canvas_info.pixels_per_unit) && !screen_size.is_zero_approx()) {
+		float canvas_width = canvas_info.size_in_pixels.x / canvas_info.pixels_per_unit;
+		float canvas_height = canvas_info.size_in_pixels.y / canvas_info.pixels_per_unit;
 		if (!Math::is_zero_approx(canvas_width) && !Math::is_zero_approx(canvas_height)) {
 			const float scale_x = screen_size.x / canvas_width;
 			const float scale_y = screen_size.y / canvas_height;
@@ -160,45 +364,49 @@ void Live2DModelInstance::_update_projection(Csm::CubismMatrix44 &r_projection) 
 void Live2DModelInstance::set_model_entry(const String &p_model_entry_path) {
 	ERR_FAIL_COND(!user_model);
 
-	if (p_model_entry_path == model_entry_path) {
-		return;
-	}
-
 	String path = p_model_entry_path;
 	if (path.begins_with("uid://")) {
 		path = ResourceUID::uid_to_path(path);
 	}
+	if (path == model_entry_path) {
+		return;
+	}
 	ERR_FAIL_COND(!path.ends_with(".model3.json"));
 
-	user_model->LoadSettingJson(path.utf8().get_data());
+	user_model->load_setting_json(path);
 
-	Csm::CubismModelSettingJson *setting = user_model->GetSettingJson();
+	Csm::CubismModelSettingJson *setting = user_model->get_setting_json();
 	ERR_FAIL_COND(!setting);
 
 	const String model_dir = path.get_base_dir();
 
 	_setup_moc_file(model_dir);
-	ERR_FAIL_COND(!user_model->GetModel());
+	ERR_FAIL_COND(!user_model->get_model());
 
 	_setup_textures(model_dir);
 	ERR_FAIL_COND(textures.is_empty());
 
-	const String pose_path = model_dir.path_join(setting->GetPoseFileName());
-	if (!pose_path.get_file().is_empty()) {
-		user_model->LoadPoseJson(pose_path.utf8().get_data());
+	user_model->setup_configs(model_dir);
+	ERR_FAIL_COND(!user_model->is_initialized());
+
+	_setup_pose_groups(model_dir);
+
+	if (is_inside_tree() || is_importing) {
+		_update_animation_player(model_dir);
 	}
 
-	const String physics_path = model_dir.path_join(setting->GetPhysicsFileName());
-	if (!physics_path.get_file().is_empty()) {
-		user_model->LoadPhysicsJson(physics_path.utf8().get_data());
+	_update_model_properties();
+
+	Live2DRenderContext render_context;
+	render_context.base_rid = get_canvas_item();
+	render_context.mask_viewport_rid = mask_viewport->get_viewport_rid();
+	render_context.mask_container_rid = mask_container->get_canvas_item();
+	for (const Ref<Texture2D> &tex : textures) {
+		render_context.texture_rids.push_back(tex->get_rid());
 	}
 
-	const String user_data_path = model_dir.path_join(setting->GetUserDataFile());
-	if (!user_data_path.get_file().is_empty()) {
-		user_model->LoadUserDataJson(user_data_path.utf8().get_data());
-	}
+	user_model->create_renderer(render_context);
 
-	user_model->CreateRenderer();
 	set_process(true);
 
 	model_entry_path = path;
@@ -220,10 +428,109 @@ TypedArray<Texture2D> Live2DModelInstance::get_textures() const {
 	return ret;
 }
 
-Live2DModelInstance::Live2DModelInstance() {
-	user_model = memnew(CubismUserModelExtend);
+bool Live2DModelInstance::_set(const StringName &p_name, const Variant &p_value) {
+	const String key = p_name;
 
-	user_model->BindBase(get_canvas_item().get_id());
+	if (parameter_ids.has(key)) {
+		const float v = p_value.operator float();
+		user_model->set_model_parameter_value(key, v);
+		return true;
+	}
+
+	if (part_ids.has(key)) {
+		int32_t gi = -1;
+		int32_t mi = -1;
+		if (_part_id_in_pose_group(pose_groups, key, &gi, &mi)) {
+			const PackedStringArray &linked_parts = pose_groups[gi];
+			const bool part_visible = (p_value.operator float() > 0.0f);
+			for (int32_t mj = 0; mj < linked_parts.size(); ++mj) {
+				const String part_id = linked_parts[mj];
+				user_model->set_model_part_visible(part_id, (mj == mi) ? part_visible : !part_visible);
+			}
+			return true;
+		}
+
+		const float v = CLAMP(p_value.operator float(), 0.0f, 1.0f);
+		user_model->set_model_part_opacity(key, v);
+		return true;
+	}
+
+	if (key == "Opacity") {
+		const float v = CLAMP(p_value.operator float(), 0.0f, 1.0f);
+		user_model->set_model_opacity(v);
+		return true;
+	}
+
+	return false;
+}
+
+bool Live2DModelInstance::_get(const StringName &p_name, Variant &r_ret) const {
+	const String key = p_name;
+
+	if (parameter_ids.has(key)) {
+		r_ret = user_model->get_model_parameter_value(key);
+		return true;
+	}
+
+	if (part_ids.has(key)) {
+		if (_part_id_in_pose_group(pose_groups, key)) {
+			r_ret = user_model->get_model_parameter_value(key);
+		} else {
+			r_ret = user_model->get_model_part_opacity(key);
+		}
+		return true;
+	}
+
+	if (key == "Opacity") {
+		r_ret = user_model->get_model_opacity();
+		return true;
+	}
+
+	return false;
+}
+
+void Live2DModelInstance::_get_property_list(List<PropertyInfo> *p_list) const {
+	p_list->push_back(PropertyInfo(Variant::NIL, "Model", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP));
+	p_list->push_back(PropertyInfo(Variant::FLOAT, "Opacity", PROPERTY_HINT_RANGE, "0.0,1.0,0.001,or_less,or_greater"));
+
+	p_list->push_back(PropertyInfo(Variant::NIL, "Parameter", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP));
+	for (const String &parameter_id : parameter_ids) {
+		float min_v = -1.0f;
+		float max_v = 1.0f;
+		if (user_model) {
+			user_model->get_model_parameter_range(parameter_id, min_v, max_v);
+		}
+		const String hint = vformat("%s,%s,0.001,or_less,or_greater", String::num_real(min_v), String::num_real(max_v));
+		p_list->push_back(PropertyInfo(Variant::FLOAT, parameter_id, PROPERTY_HINT_RANGE, hint));
+	}
+
+	p_list->push_back(PropertyInfo(Variant::NIL, "PartOpacity", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP));
+	for (const String &part_id : part_ids) {
+		p_list->push_back(PropertyInfo(Variant::FLOAT, part_id, PROPERTY_HINT_RANGE, "0.0,1.0,0.001,or_less,or_greater"));
+	}
+}
+
+Live2DModelInstance::Live2DModelInstance(bool p_is_importing) {
+	is_importing = p_is_importing;
+
+	user_model = memnew(Live2DUserModel);
+
+	mask_viewport = memnew(SubViewport);
+	mask_viewport->set_name("Live2DMaskViewport");
+	mask_viewport->set_size(Vector2i(Live2DRenderer::MASK_TARGET_SIZE, Live2DRenderer::MASK_TARGET_SIZE));
+	mask_viewport->set_update_mode(SubViewport::UPDATE_ALWAYS);
+	mask_viewport->set_clear_mode(SubViewport::CLEAR_MODE_ALWAYS);
+	mask_viewport->set_transparent_background(false);
+	mask_viewport->set_disable_3d(true);
+
+	Ref<World2D> mask_world;
+	mask_world.instantiate();
+	mask_viewport->set_world_2d(mask_world);
+	add_child(mask_viewport, false, Node::INTERNAL_MODE_FRONT);
+
+	mask_container = memnew(Node2D);
+	mask_container->set_name("MaskCanvas");
+	mask_viewport->add_child(mask_container);
 }
 
 Live2DModelInstance::~Live2DModelInstance() {
@@ -231,3 +538,75 @@ Live2DModelInstance::~Live2DModelInstance() {
 		memdelete(user_model);
 	}
 }
+
+Ref<PackedScene> Live2DModelInstance::create_packed_scene(const String &p_model_entry_path) {
+	Live2DModelInstance *instance = memnew(Live2DModelInstance(true));
+	instance->set_name(p_model_entry_path.get_base_dir().get_file());
+	instance->set_model_entry(p_model_entry_path);
+
+	// Refuse to pack hollow scenes
+	if (instance->get_model_entry().is_empty()) {
+		memdelete(instance);
+		ERR_PRINT(String("[GDLive2D] Failed to pack scene for: ") + p_model_entry_path);
+		return Ref<PackedScene>();
+	}
+
+	Ref<PackedScene> packed;
+	packed.instantiate();
+
+	const Error pack_err = packed->pack(instance);
+	memdelete(instance);
+
+	if (pack_err != OK) {
+		ERR_PRINT(String("[GDLive2D] Failed to pack scene for: ") + p_model_entry_path);
+		return Ref<PackedScene>();
+	}
+
+	return packed;
+}
+
+#ifdef GDEXTENSION
+Variant ResourceFormatLoaderLive2DModel::_load(const String &p_path, const String &p_original_path, bool p_use_sub_threads, int32_t p_cache_mode) const {
+	return Live2DModelInstance::create_packed_scene(p_path);
+}
+
+PackedStringArray ResourceFormatLoaderLive2DModel::_get_recognized_extensions() const {
+	PackedStringArray extensions;
+	extensions.push_back("model3.json");
+	return extensions;
+}
+
+bool ResourceFormatLoaderLive2DModel::_handles_type(const StringName &p_type) const {
+	return ClassDB::is_parent_class(p_type, "PackedScene");
+}
+
+String ResourceFormatLoaderLive2DModel::_get_resource_type(const String &p_path) const {
+	if (p_path.ends_with(".model3.json")) {
+		return "PackedScene";
+	}
+	return "";
+}
+#elif defined(GODOT_MODULE)
+Ref<Resource> ResourceFormatLoaderLive2DModel::load(const String &p_path, const String &p_original_path, Error *r_error, bool p_use_sub_threads, float *r_progress, CacheMode p_cache_mode) {
+	if (r_error) {
+		*r_error = ERR_FILE_UNRECOGNIZED;
+	}
+
+	return Live2DModelInstance::create_packed_scene(p_path);
+}
+
+void ResourceFormatLoaderLive2DModel::get_recognized_extensions(List<String> *p_extensions) const {
+	p_extensions->push_back("model3.json");
+}
+
+bool ResourceFormatLoaderLive2DModel::handles_type(const String &p_type) const {
+	return ClassDB::is_parent_class(p_type, "PackedScene");
+}
+
+String ResourceFormatLoaderLive2DModel::get_resource_type(const String &p_path) const {
+	if (p_path.ends_with(".model3.json")) {
+		return "PackedScene";
+	}
+	return "";
+}
+#endif

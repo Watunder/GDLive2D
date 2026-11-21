@@ -40,10 +40,8 @@ String Live2DMocFile::get_load_path() const {
 	return path_to_file;
 }
 
-/**************************************************************************/
-
 #ifdef GDEXTENSION
-Variant ResourceFormatLoaderLive2DModelData::_load(const String &p_path, const String &p_original_path, bool p_use_sub_threads, int32_t p_cache_mode) const {
+Variant ResourceFormatLoaderLive2DMocFile::_load(const String &p_path, const String &p_original_path, bool p_use_sub_threads, int32_t p_cache_mode) const {
 	Ref<Live2DMocFile> live2d_model_data;
 	live2d_model_data.instantiate();
 
@@ -54,17 +52,17 @@ Variant ResourceFormatLoaderLive2DModelData::_load(const String &p_path, const S
 	return live2d_model_data;
 }
 
-PackedStringArray ResourceFormatLoaderLive2DModelData::_get_recognized_extensions() const {
+PackedStringArray ResourceFormatLoaderLive2DMocFile::_get_recognized_extensions() const {
 	PackedStringArray extensions;
 	extensions.push_back("moc3");
 	return extensions;
 }
 
-bool ResourceFormatLoaderLive2DModelData::_handles_type(const StringName &p_type) const {
+bool ResourceFormatLoaderLive2DMocFile::_handles_type(const StringName &p_type) const {
 	return ClassDB::is_parent_class(p_type, "Live2DMocFile");
 }
 
-String ResourceFormatLoaderLive2DModelData::_get_resource_type(const String &p_path) const {
+String ResourceFormatLoaderLive2DMocFile::_get_resource_type(const String &p_path) const {
 	String el = p_path.get_extension().to_lower();
 	if (el == "moc3") {
 		return "Live2DMocFile";
@@ -72,7 +70,7 @@ String ResourceFormatLoaderLive2DModelData::_get_resource_type(const String &p_p
 	return "";
 }
 #elif defined(GODOT_MODULE)
-Ref<Resource> ResourceFormatLoaderLive2DModelData::load(const String &p_path, const String &p_original_path, Error *r_error, bool p_use_sub_threads, float *r_progress, CacheMode p_cache_mode) {
+Ref<Resource> ResourceFormatLoaderLive2DMocFile::load(const String &p_path, const String &p_original_path, Error *r_error, bool p_use_sub_threads, float *r_progress, CacheMode p_cache_mode) {
 	if (r_error) {
 		*r_error = ERR_FILE_CANT_OPEN;
 	}
@@ -87,15 +85,15 @@ Ref<Resource> ResourceFormatLoaderLive2DModelData::load(const String &p_path, co
 	return live2d_model_data;
 }
 
-void ResourceFormatLoaderLive2DModelData::get_recognized_extensions(List<String> *p_extensions) const {
+void ResourceFormatLoaderLive2DMocFile::get_recognized_extensions(List<String> *p_extensions) const {
 	p_extensions->push_back("moc3");
 }
 
-bool ResourceFormatLoaderLive2DModelData::handles_type(const String &p_type) const {
+bool ResourceFormatLoaderLive2DMocFile::handles_type(const String &p_type) const {
 	return ClassDB::is_parent_class(p_type, "Live2DMocFile");
 }
 
-String ResourceFormatLoaderLive2DModelData::get_resource_type(const String &p_path) const {
+String ResourceFormatLoaderLive2DMocFile::get_resource_type(const String &p_path) const {
 	String el = p_path.get_extension().to_lower();
 	if (el == "moc3") {
 		return "Live2DMocFile";

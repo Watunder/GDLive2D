@@ -397,8 +397,10 @@ $RECYCLE.BIN/
 *.lnk
 *.generated.props
 
-####################
-### Others files ###
-####################
+###################
+### Other files ###
+###################
 
 lib/CubismSdkForNative*/
+
+test/
