@@ -110,22 +110,17 @@ void Live2DUserModel::_delete_renderer() {
 	}
 }
 
-void Live2DUserModel::create_renderer() {
-	ERR_FAIL_COND(!model);
-	create_renderer(static_cast<uint32_t>(model->GetCanvasWidth()), static_cast<uint32_t>(model->GetCanvasHeight()), 1);
-}
-
-void Live2DUserModel::create_renderer(uint32_t p_width, uint32_t p_height, int32_t p_mask_buffer_count) {
+void Live2DUserModel::create_renderer(const Live2DRenderContext &p_context) {
 	if (renderer) {
 		_delete_renderer();
 	}
 
-	renderer = CSM_NEW Live2DRenderer(p_width, p_height);
+	renderer = CSM_NEW Live2DRenderer(p_context);
 	ERR_FAIL_COND(!renderer);
 
-	renderer->initialize(this, p_mask_buffer_count);
-	renderer->bind_mask_targets(mask_viewport_rid, mask_container_rid);
-	renderer->update_model();
+	ERR_FAIL_COND(!model);
+	renderer->initialize(*model);
+	renderer->update_model(*model);
 }
 
 Csm::CubismModelSettingJson *Live2DUserModel::get_setting_json() const {
@@ -250,38 +245,6 @@ void Live2DUserModel::release_configs() {
 	}
 }
 
-RID Live2DUserModel::get_base_rid() const {
-	return base_rid;
-}
-
-void Live2DUserModel::bind_base_rid(const RID &p_rid) {
-	base_rid = p_rid;
-}
-
-void Live2DUserModel::bind_mask_targets(const RID &p_viewport_rid, const RID &p_mask_container_rid) {
-	mask_viewport_rid = p_viewport_rid;
-	mask_container_rid = p_mask_container_rid;
-}
-
-RID Live2DUserModel::get_texture_rid(int32_t p_index) const {
-	if (p_index < 0 || p_index >= texture_rids.size()) {
-		return RID();
-	}
-	return texture_rids.get(p_index);
-}
-
-void Live2DUserModel::bind_texture_rid(int32_t p_index, const RID &p_rid) {
-	if (p_index < 0) {
-		return;
-	}
-
-	const Vector<RID>::Size idx = p_index;
-	while (texture_rids.size() <= idx) {
-		texture_rids.push_back(RID());
-	}
-	texture_rids.set(idx, p_rid);
-}
-
 void Live2DUserModel::update(float p_delta_time) {
 	ERR_FAIL_COND(!model);
 
@@ -321,7 +284,7 @@ void Live2DUserModel::update_masks(Csm::CubismMatrix44 &p_matrix) {
 	mvp.MultiplyByMatrix(model_matrix);
 
 	renderer->set_mvp_matrix(&mvp);
-	renderer->update_masks();
+	renderer->update_masks(*model);
 }
 
 void Live2DUserModel::draw(Csm::CubismMatrix44 &p_matrix) {
@@ -331,7 +294,7 @@ void Live2DUserModel::draw(Csm::CubismMatrix44 &p_matrix) {
 	p_matrix.MultiplyByMatrix(model_matrix);
 
 	renderer->set_mvp_matrix(&p_matrix);
-	renderer->draw_model();
+	renderer->draw_model(*model);
 }
 
 void Live2DUserModel::get_model_parameter_ids(PackedStringArray &r_parameter_ids) const {

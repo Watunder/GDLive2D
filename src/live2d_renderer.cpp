@@ -6,13 +6,11 @@
 using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/io/marshalls.h"
-#include "core/os/os.h"
 #include "scene/resources/mesh.h"
 #include "servers/rendering_server.h"
 #endif
 
 #include "live2d_shader_library.h"
-#include "live2d_user_model.h"
 
 #include <Rendering/CubismClippingManager.hpp>
 
@@ -87,9 +85,9 @@ static void _encode_position(PackedByteArray &r_buffer, int32_t p_vertex_index, 
 #endif
 }
 
-static int32_t _get_draw_index(Csm::CubismModel *p_model, int32_t p_drawable_index) {
-	const Csm::csmInt32 *render_order = p_model->GetRenderOrders();
-	const int32_t drawable_count = p_model->GetDrawableCount();
+static int32_t _get_draw_index(const Csm::CubismModel &p_model, int32_t p_drawable_index) {
+	const Csm::csmInt32 *render_order = p_model.GetRenderOrders();
+	const int32_t drawable_count = p_model.GetDrawableCount();
 	int32_t order = p_drawable_index;
 	if (render_order && p_drawable_index >= 0 && p_drawable_index < drawable_count) {
 		order = render_order[p_drawable_index];
@@ -100,11 +98,11 @@ static int32_t _get_draw_index(Csm::CubismModel *p_model, int32_t p_drawable_ind
 	return order * 4 + 3;
 }
 
-static Array _create_drawable_mesh_arrays(Csm::CubismModel *p_model, int32_t p_drawable_index) {
-	const Csm::csmInt32 vcount = p_model->GetDrawableVertexCount(p_drawable_index);
-	const Csm::csmInt32 icount = p_model->GetDrawableVertexIndexCount(p_drawable_index);
-	const Csm::csmUint16 *vertex_indices = p_model->GetDrawableVertexIndices(p_drawable_index);
-	const Live2D::Cubism::Core::csmVector2 *vertex_uvs = p_model->GetDrawableVertexUvs(p_drawable_index);
+static Array _create_drawable_mesh_arrays(const Csm::CubismModel &p_model, int32_t p_drawable_index) {
+	const Csm::csmInt32 vcount = p_model.GetDrawableVertexCount(p_drawable_index);
+	const Csm::csmInt32 icount = p_model.GetDrawableVertexIndexCount(p_drawable_index);
+	const Csm::csmUint16 *vertex_indices = p_model.GetDrawableVertexIndices(p_drawable_index);
+	const Live2D::Cubism::Core::csmVector2 *vertex_uvs = p_model.GetDrawableVertexUvs(p_drawable_index);
 	if (vcount <= 0 || icount <= 0 || !vertex_indices || !vertex_uvs) {
 		return Array();
 	}
@@ -156,23 +154,26 @@ static void _free_rid(const RID &p_rid) {
 }
 
 bool Live2DRenderer::_has_mask_target() const {
-	return mask_viewport_rid.is_valid() && mask_container_rid.is_valid();
-}
-
-void Live2DRenderer::_build_masks() {
-	_release_masks();
-
-	Csm::CubismModel *model = user_model ? user_model->get_model() : nullptr;
-	if (!model || !_has_mask_target() || !model->IsUsingMasking()) {
-		return;
-	}
-
-	_build_mask_target();
+	ERR_FAIL_COND_V(!render_context.mask_viewport_rid.is_valid(), false);
+	ERR_FAIL_COND_V(!render_context.mask_container_rid.is_valid(), false);
+	return true;
 }
 
 void Live2DRenderer::_release_masks() {
 	_release_mask_target();
 	mask_texture_rid = RID();
+}
+
+void Live2DRenderer::_build_masks(Csm::CubismModel &p_model) {
+	_release_masks();
+
+	ERR_FAIL_COND(!clipping_manager);
+
+	if (!_has_mask_target()) {
+		return;
+	}
+
+	_build_mask_target(p_model);
 }
 
 void Live2DRenderer::_update_mask_texture() {
@@ -181,7 +182,7 @@ void Live2DRenderer::_update_mask_texture() {
 	}
 
 	RenderingServer *rs = RenderingServer::get_singleton();
-	const RID texture_rid = rs->viewport_get_texture(mask_viewport_rid);
+	const RID texture_rid = rs->viewport_get_texture(render_context.mask_viewport_rid);
 	if (!texture_rid.is_valid() || texture_rid == mask_texture_rid) {
 		return;
 	}
@@ -191,59 +192,6 @@ void Live2DRenderer::_update_mask_texture() {
 		DrawableRenderData &d = drawables.write[i];
 		if (d.masked && d.material.is_valid()) {
 			d.material->set_shader_parameter("mask_texture", mask_texture_rid);
-		}
-	}
-}
-
-void Live2DRenderer::_build_mask_target() {
-	Csm::CubismModel *model = user_model ? user_model->get_model() : nullptr;
-	if (!model || !_has_mask_target()) {
-		return;
-	}
-
-	clipping_manager = memnew(Live2DClippingManager);
-	clipping_manager->Initialize(*model, 1, DrawableObjectType::DrawableObjectType_Drawable);
-
-	RenderingServer *rs = RenderingServer::get_singleton();
-
-	mask_background_rid = rs->canvas_item_create();
-	rs->canvas_item_set_parent(mask_background_rid, mask_container_rid);
-	rs->canvas_item_set_draw_index(mask_background_rid, 0);
-	rs->canvas_item_add_rect(mask_background_rid, Rect2(0, 0, MASK_TARGET_SIZE, MASK_TARGET_SIZE), Color(1, 1, 1, 1));
-
-	const int32_t context_count = clipping_manager->get_mask_context_count();
-	int32_t draw_index = 1;
-	for (int32_t ci = 0; ci < context_count; ++ci) {
-		Live2DClippingContext *context = clipping_manager->get_mask_context(ci);
-		for (Csm::csmInt32 k = 0; k < context->_clippingIdCount; ++k) {
-			const int32_t source_index = context->_clippingIdList[k];
-			if (source_index < 0 || source_index >= model->GetDrawableCount()) {
-				continue;
-			}
-
-			Array mesh_arrays = _create_drawable_mesh_arrays(model, source_index);
-			if (mesh_arrays.is_empty()) {
-				continue;
-			}
-
-			RID mesh_rid = rs->mesh_create();
-			rs->mesh_add_surface_from_arrays(mesh_rid, RenderingServer::PRIMITIVE_TRIANGLES, mesh_arrays);
-
-			RID canvas_item_rid = rs->canvas_item_create();
-			rs->canvas_item_set_parent(canvas_item_rid, mask_container_rid);
-			rs->canvas_item_set_draw_index(canvas_item_rid, draw_index++);
-
-			Ref<ShaderMaterial> material = Live2DShaderLibrary::create_mask_material();
-			rs->canvas_item_set_material(canvas_item_rid, material->get_rid());
-
-			MaskSourceRenderData data;
-			data.context_index = ci;
-			data.drawable_index = source_index;
-			data.canvas_item_rid = canvas_item_rid;
-			data.texture_rid = user_model->get_texture_rid(model->GetDrawableTextureIndex(source_index));
-			data.mesh_rid = mesh_rid;
-			data.material = material;
-			mask_sources.push_back(data);
 		}
 	}
 }
@@ -266,22 +214,61 @@ void Live2DRenderer::_release_mask_target() {
 		_free_rid(mask_background_rid);
 		mask_background_rid = RID();
 	}
+}
 
-	if (clipping_manager) {
-		memdelete(clipping_manager);
-		clipping_manager = nullptr;
+void Live2DRenderer::_build_mask_target(Csm::CubismModel &p_model) {
+	ERR_FAIL_COND(!clipping_manager);
+
+	if (!_has_mask_target()) {
+		return;
+	}
+
+	RenderingServer *rs = RenderingServer::get_singleton();
+
+	mask_background_rid = rs->canvas_item_create();
+	rs->canvas_item_set_parent(mask_background_rid, render_context.mask_container_rid);
+	rs->canvas_item_set_draw_index(mask_background_rid, 0);
+	rs->canvas_item_add_rect(mask_background_rid, Rect2(0, 0, MASK_TARGET_SIZE, MASK_TARGET_SIZE), Color(1, 1, 1, 1));
+
+	const int32_t context_count = clipping_manager->get_mask_context_count();
+	int32_t draw_index = 1;
+	for (int32_t ci = 0; ci < context_count; ++ci) {
+		Live2DClippingContext *context = clipping_manager->get_mask_context(ci);
+		for (Csm::csmInt32 k = 0; k < context->_clippingIdCount; ++k) {
+			const int32_t source_index = context->_clippingIdList[k];
+			if (source_index < 0 || source_index >= p_model.GetDrawableCount()) {
+				continue;
+			}
+
+			Array mesh_arrays = _create_drawable_mesh_arrays(p_model, source_index);
+			if (mesh_arrays.is_empty()) {
+				continue;
+			}
+
+			RID mesh_rid = rs->mesh_create();
+			rs->mesh_add_surface_from_arrays(mesh_rid, RenderingServer::PRIMITIVE_TRIANGLES, mesh_arrays);
+
+			RID canvas_item_rid = rs->canvas_item_create();
+			rs->canvas_item_set_parent(canvas_item_rid, render_context.mask_container_rid);
+			rs->canvas_item_set_draw_index(canvas_item_rid, draw_index++);
+
+			Ref<ShaderMaterial> material = Live2DShaderLibrary::create_mask_material();
+			rs->canvas_item_set_material(canvas_item_rid, material->get_rid());
+
+			MaskSourceRenderData data;
+			data.context_index = ci;
+			data.drawable_index = source_index;
+			data.canvas_item_rid = canvas_item_rid;
+			data.texture_rid = render_context.get_texture_rid(p_model.GetDrawableTextureIndex(source_index));
+			data.mesh_rid = mesh_rid;
+			data.material = material;
+			mask_sources.push_back(data);
+		}
 	}
 }
 
-void Live2DRenderer::_update_mask_target() {
-	if (!clipping_manager) {
-		return;
-	}
-
-	Csm::CubismModel *model = user_model ? user_model->get_model() : nullptr;
-	if (!model) {
-		return;
-	}
+void Live2DRenderer::_update_mask_target(Csm::CubismModel &p_model) {
+	ERR_FAIL_COND(!clipping_manager);
 
 	RenderingServer *rs = RenderingServer::get_singleton();
 
@@ -289,7 +276,7 @@ void Live2DRenderer::_update_mask_target() {
 	int32_t using_count = 0;
 	for (int32_t ci = 0; ci < context_count; ++ci) {
 		Live2DClippingContext *context = clipping_manager->get_mask_context(ci);
-		clipping_manager->CalcClippedTotalBounds(*model, context, DrawableObjectType::DrawableObjectType_Drawable);
+		clipping_manager->CalcClippedTotalBounds(p_model, context, DrawableObjectType::DrawableObjectType_Drawable);
 		if (context->_isUsing) {
 			++using_count;
 		}
@@ -326,8 +313,8 @@ void Live2DRenderer::_update_mask_target() {
 		const Csm::csmFloat32 scale_y = layout->Height / bounds.Height;
 
 		const int32_t di = source.drawable_index;
-		const Csm::csmInt32 vcount = model->GetDrawableVertexCount(di);
-		const Csm::csmFloat32 *vertices = model->GetDrawableVertices(di);
+		const Csm::csmInt32 vcount = p_model.GetDrawableVertexCount(di);
+		const Csm::csmFloat32 *vertices = p_model.GetDrawableVertices(di);
 		if (vcount <= 0 || !vertices) {
 			rs->canvas_item_set_visible(source.canvas_item_rid, false);
 			continue;
@@ -356,69 +343,6 @@ void Live2DRenderer::_update_mask_target() {
 	}
 }
 
-void Live2DRenderer::_build_drawables() {
-	_release_drawables();
-
-	Csm::CubismModel *model = user_model->get_model();
-	ERR_FAIL_COND(!model);
-
-	const RID base_rid = user_model->get_base_rid();
-	ERR_FAIL_COND(!base_rid.is_valid());
-
-	const Csm::csmInt32 drawable_count = model->GetDrawableCount();
-	if (drawable_count <= 0) {
-		return;
-	}
-
-	drawables.resize(drawable_count);
-
-	RenderingServer *rs = RenderingServer::get_singleton();
-
-	for (int32_t di = 0; di < drawable_count; ++di) {
-		Array mesh_arrays = _create_drawable_mesh_arrays(model, di);
-		if (mesh_arrays.is_empty()) {
-			continue;
-		}
-
-		RID mesh_rid = rs->mesh_create();
-		rs->mesh_add_surface_from_arrays(mesh_rid, RenderingServer::PRIMITIVE_TRIANGLES, mesh_arrays);
-
-		RID canvas_item_rid = rs->canvas_item_create();
-		rs->canvas_item_set_parent(canvas_item_rid, base_rid);
-
-		const int32_t draw_index = _get_draw_index(model, di);
-		rs->canvas_item_set_draw_index(canvas_item_rid, draw_index);
-
-		const Csm::csmInt32 *mask_counts = model->GetDrawableMaskCounts();
-		const bool masked = _has_mask_target() && clipping_manager && mask_counts && mask_counts[di] > 0;
-		Live2DClippingContext *mask_context = masked ? clipping_manager->get_context_for_drawable(di) : nullptr;
-
-		const Csm::csmBlendMode blend_mode = model->GetDrawableBlendModeType(di);
-		Ref<ShaderMaterial> material = Live2DShaderLibrary::create_material(blend_mode, mask_context != nullptr,
-				mask_context != nullptr && model->GetDrawableInvertedMask(di));
-		rs->canvas_item_set_material(canvas_item_rid, material->get_rid());
-
-		RID backbuffer_copy_rid;
-		if (Live2DShaderLibrary::requires_backbuffer(blend_mode)) {
-			backbuffer_copy_rid = rs->canvas_item_create();
-			rs->canvas_item_set_parent(backbuffer_copy_rid, base_rid);
-			rs->canvas_item_set_draw_index(backbuffer_copy_rid, draw_index - 1);
-			rs->canvas_item_set_copy_to_backbuffer(backbuffer_copy_rid, true, Rect2());
-		}
-
-		DrawableRenderData data;
-		data.drawable_index = di;
-		data.masked = mask_context != nullptr;
-		data.mask_context = mask_context;
-		data.canvas_item_rid = canvas_item_rid;
-		data.backbuffer_copy_rid = backbuffer_copy_rid;
-		data.texture_rid = user_model->get_texture_rid(model->GetDrawableTextureIndex(di));
-		data.mesh_rid = mesh_rid;
-		data.material = material;
-		drawables.write[di] = data;
-	}
-}
-
 void Live2DRenderer::_release_drawables() {
 	for (int32_t i = 0; i < drawables.size(); ++i) {
 		DrawableRenderData &d = drawables.write[i];
@@ -438,29 +362,86 @@ void Live2DRenderer::_release_drawables() {
 	drawables.clear();
 }
 
-void Live2DRenderer::_render_drawable(int32_t drawable_index) {
-	Csm::CubismModel *model = user_model->get_model();
-	ERR_FAIL_COND(!model);
+void Live2DRenderer::_build_drawables(Csm::CubismModel &p_model) {
+	_release_drawables();
 
+	ERR_FAIL_COND(!render_context.base_rid.is_valid());
+
+	const Csm::csmInt32 drawable_count = p_model.GetDrawableCount();
+	if (drawable_count <= 0) {
+		return;
+	}
+
+	drawables.resize(drawable_count);
+
+	const Csm::csmInt32 *mask_counts = p_model.GetDrawableMaskCounts();
+
+	RenderingServer *rs = RenderingServer::get_singleton();
+
+	for (int32_t di = 0; di < drawable_count; ++di) {
+		Array mesh_arrays = _create_drawable_mesh_arrays(p_model, di);
+		if (mesh_arrays.is_empty()) {
+			continue;
+		}
+
+		RID mesh_rid = rs->mesh_create();
+		rs->mesh_add_surface_from_arrays(mesh_rid, RenderingServer::PRIMITIVE_TRIANGLES, mesh_arrays);
+
+		RID canvas_item_rid = rs->canvas_item_create();
+		rs->canvas_item_set_parent(canvas_item_rid, render_context.base_rid);
+
+		const int32_t draw_index = _get_draw_index(p_model, di);
+		rs->canvas_item_set_draw_index(canvas_item_rid, draw_index);
+
+		const bool is_using_masking = mask_counts && mask_counts[di] > 0 && _has_mask_target();
+
+		const Csm::csmBlendMode blend_mode = p_model.GetDrawableBlendModeType(di);
+		const bool masked = is_using_masking && clipping_manager->get_context_for_drawable(di) != nullptr;
+		const bool inverted = masked && p_model.GetDrawableInvertedMask(di);
+
+		Ref<ShaderMaterial> material = Live2DShaderLibrary::create_material(blend_mode, masked, inverted);
+		rs->canvas_item_set_material(canvas_item_rid, material->get_rid());
+
+		RID backbuffer_copy_rid;
+		if (Live2DShaderLibrary::requires_backbuffer(blend_mode)) {
+			backbuffer_copy_rid = rs->canvas_item_create();
+			rs->canvas_item_set_parent(backbuffer_copy_rid, render_context.base_rid);
+			rs->canvas_item_set_draw_index(backbuffer_copy_rid, draw_index - 1);
+			rs->canvas_item_set_copy_to_backbuffer(backbuffer_copy_rid, true, Rect2());
+		}
+
+		DrawableRenderData data;
+		data.drawable_index = di;
+		data.masked = masked;
+		data.canvas_item_rid = canvas_item_rid;
+		data.backbuffer_copy_rid = backbuffer_copy_rid;
+		data.texture_rid = render_context.get_texture_rid(p_model.GetDrawableTextureIndex(di));
+		data.mesh_rid = mesh_rid;
+		data.material = material;
+		drawables.write[di] = data;
+	}
+}
+
+void Live2DRenderer::_render_drawable(Csm::CubismModel &p_model, int32_t drawable_index) {
 	if (drawable_index < 0 || drawable_index >= drawables.size()) {
 		return;
 	}
 
-	DrawableRenderData &d = drawables.write[drawable_index];
+	const DrawableRenderData &d = drawables.get(drawable_index);
 	const RID ci = d.canvas_item_rid;
 	if (!d.mesh_rid.is_valid() || !ci.is_valid()) {
 		return;
 	}
 
 	const int32_t di = d.drawable_index;
-	const Csm::csmInt32 vcount = model->GetDrawableVertexCount(di);
+	const Csm::csmInt32 vcount = p_model.GetDrawableVertexCount(di);
 	if (vcount <= 0) {
 		return;
 	}
 
 	RenderingServer *rs = RenderingServer::get_singleton();
 
-	const bool visible = model->GetDrawableDynamicFlagIsVisible(di);
+	const bool visible = p_model.GetDrawableDynamicFlagIsVisible(di);
 	rs->canvas_item_set_visible(ci, visible);
 	if (d.backbuffer_copy_rid.is_valid()) {
 		rs->canvas_item_set_visible(d.backbuffer_copy_rid, visible);
@@ -469,7 +450,7 @@ void Live2DRenderer::_render_drawable(int32_t drawable_index) {
 		return;
 	}
 
-	const Csm::csmFloat32 *cubism_vertices = model->GetDrawableVertices(di);
+	const Csm::csmFloat32 *cubism_vertices = p_model.GetDrawableVertices(di);
 	if (!cubism_vertices) {
 		return;
 	}
@@ -520,8 +501,8 @@ void Live2DRenderer::_render_drawable(int32_t drawable_index) {
 	rs->canvas_item_clear(ci);
 	rs->canvas_item_add_mesh(ci, d.mesh_rid, Transform2D(), Color(1, 1, 1, 1), d.texture_rid);
 
-	const float opacity = model->GetDrawableOpacity(di) * model->GetModelOpacity();
-	const Csm::CubismModelMultiplyAndScreenColor &multiply_and_screen_color = model->GetOverrideMultiplyAndScreenColor();
+	const float opacity = p_model.GetDrawableOpacity(di) * p_model.GetModelOpacity();
+	const Csm::CubismModelMultiplyAndScreenColor &multiply_and_screen_color = p_model.GetOverrideMultiplyAndScreenColor();
 	const Csm::Rendering::CubismRenderer::CubismTextureColor multiply_color = multiply_and_screen_color.GetDrawableMultiplyColor(di);
 	const Csm::Rendering::CubismRenderer::CubismTextureColor screen_color = multiply_and_screen_color.GetDrawableScreenColor(di);
 
@@ -530,20 +511,21 @@ void Live2DRenderer::_render_drawable(int32_t drawable_index) {
 		d.material->set_shader_parameter("screen_color", Color(screen_color.R, screen_color.G, screen_color.B, screen_color.A));
 	}
 
-	if (d.masked && d.mask_context && clipping_manager && d.material.is_valid()) {
+	if (d.masked && d.material.is_valid()) {
 		Csm::CubismMatrix44 mvp;
 		mvp.SetMatrix(mvp_matrix.ptrw());
 		Csm::CubismMatrix44 inverse = mvp.GetInvert();
 
-		Csm::CubismMatrix44 clip_matrix(d.mask_context->_matrixForDraw);
+		Live2DClippingContext *mask_context = clipping_manager->get_context_for_drawable(d.drawable_index);
+
+		Csm::CubismMatrix44 clip_matrix(mask_context->_matrixForDraw);
 		clip_matrix.MultiplyByMatrix(&inverse);
 		Csm::csmFloat32 *clip = clip_matrix.GetArray();
 		for (int32_t i = 4; i < 8; ++i) {
 			clip[i] = -clip[i];
 		}
 
-		const Csm::Rendering::CubismRenderer::CubismTextureColor *channel =
-				clipping_manager->GetChannelFlagAsColor(d.mask_context->_layoutChannelIndex);
+		const Csm::Rendering::CubismRenderer::CubismTextureColor *channel = clipping_manager->GetChannelFlagAsColor(mask_context->_layoutChannelIndex);
 		d.material->set_shader_parameter("mask_channel", Color(channel->R, channel->G, channel->B, channel->A));
 		d.material->set_shader_parameter("clip_row0", Vector4(clip[0], clip[4], clip[8], clip[12]));
 		d.material->set_shader_parameter("clip_row1", Vector4(clip[1], clip[5], clip[9], clip[13]));
@@ -555,44 +537,37 @@ void Live2DRenderer::_render_drawable(int32_t drawable_index) {
 	rs->canvas_item_set_modulate(ci, Color(1, 1, 1, CLAMP(opacity, 0.0f, 1.0f)));
 }
 
-Live2DRenderer::Live2DRenderer(uint32_t /*p_width*/, uint32_t /*p_height*/) {
+Live2DRenderer::Live2DRenderer(const Live2DRenderContext &p_context) :
+		render_context(p_context) {
 }
 
 Live2DRenderer::~Live2DRenderer() {
 	_release_drawables();
 	_release_masks();
+
+	CSM_DELETE_SELF(Live2DClippingManager, clipping_manager);
 }
 
-void Live2DRenderer::initialize(Live2DUserModel *p_user_model) {
-	initialize(p_user_model, 1);
-}
+void Live2DRenderer::initialize(Csm::CubismModel &p_model, int32_t p_mask_buffer_count) {
+	clipping_manager = CSM_NEW(Live2DClippingManager);
+	ERR_FAIL_COND(!clipping_manager);
 
-void Live2DRenderer::initialize(Live2DUserModel *p_user_model, int32_t /*p_mask_buffer_count*/) {
-	ERR_FAIL_COND(!p_user_model);
-	user_model = p_user_model;
+	clipping_manager->Initialize(p_model, p_mask_buffer_count, DrawableObjectType::DrawableObjectType_Drawable);
 
-	Csm::CubismModel *model = user_model->get_model();
-	ERR_FAIL_COND(!model);
-
-	if (model->GetOffscreenCount() > 0) {
+	if (p_model.GetOffscreenCount() > 0) {
 		WARN_PRINT_ED("[GDLive2D] Offscreen drawing is not implemented.");
 	}
 }
 
-void Live2DRenderer::bind_mask_targets(const RID &p_viewport_rid, const RID &p_mask_container_rid) {
-	mask_viewport_rid = p_viewport_rid;
-	mask_container_rid = p_mask_container_rid;
-}
-
-void Live2DRenderer::update_masks() {
-	_update_mask_target();
+void Live2DRenderer::update_masks(Csm::CubismModel &p_model) {
+	_update_mask_target(p_model);
 	_update_mask_texture();
 }
 
-void Live2DRenderer::update_model() {
+void Live2DRenderer::update_model(Csm::CubismModel &p_model) {
 	// Masks must be built before drawables for material selection
-	_build_masks();
-	_build_drawables();
+	_build_masks(p_model);
+	_build_drawables(p_model);
 }
 
 void Live2DRenderer::set_mvp_matrix(Csm::CubismMatrix44 *p_matrix) {
@@ -606,13 +581,8 @@ void Live2DRenderer::set_mvp_matrix(Csm::CubismMatrix44 *p_matrix) {
 	}
 }
 
-void Live2DRenderer::draw_model() {
-	ERR_FAIL_COND(!user_model);
-
-	Csm::CubismModel *model = user_model->get_model();
-	ERR_FAIL_COND(!model);
-
+void Live2DRenderer::draw_model(Csm::CubismModel &p_model) {
 	for (int32_t i = 0; i < drawables.size(); ++i) {
-		_render_drawable(i);
+		_render_drawable(p_model, i);
 	}
 }

@@ -6,9 +6,10 @@
 using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/templates/vector.h"
-#include "core/typedefs.h"
 #include "core/variant/variant.h"
 #endif
+
+#include "live2d_renderer.h"
 
 #include <CubismFramework.hpp>
 #include <CubismModelSettingJson.hpp>
@@ -22,8 +23,6 @@ using namespace godot;
 #include <Model/CubismModel.hpp>
 #include <Model/CubismModelUserData.hpp>
 #include <Physics/CubismPhysics.hpp>
-
-class Live2DRenderer;
 
 class Live2DUserModel {
 public:
@@ -42,12 +41,6 @@ private:
 	const Csm::CubismId *id_param_body_angle_x = nullptr;
 	const Csm::CubismId *id_param_eye_ball_x = nullptr;
 	const Csm::CubismId *id_param_eye_ball_y = nullptr;
-
-	RID base_rid;
-	Vector<RID> texture_rids;
-
-	RID mask_viewport_rid;
-	RID mask_container_rid;
 
 	CanvasInfo canvas_info;
 
@@ -83,8 +76,7 @@ public:
 	Csm::CubismModel *get_model() const { return model; }
 	bool is_initialized() const { return initialized; }
 
-	void create_renderer();
-	void create_renderer(uint32_t p_width, uint32_t p_height, int32_t p_mask_buffer_count = 1);
+	void create_renderer(const Live2DRenderContext &p_context);
 
 	Csm::CubismModelSettingJson *get_setting_json() const;
 	void load_setting_json(const String &p_json_path);
@@ -94,14 +86,6 @@ public:
 
 	void setup_configs(const String &p_base_dir);
 	void release_configs();
-
-	RID get_base_rid() const;
-	void bind_base_rid(const RID &p_rid);
-
-	void bind_mask_targets(const RID &p_viewport_rid, const RID &p_mask_container_rid);
-
-	RID get_texture_rid(int32_t p_index) const;
-	void bind_texture_rid(int32_t p_index, const RID &p_rid);
 
 	void update(float p_delta_time);
 

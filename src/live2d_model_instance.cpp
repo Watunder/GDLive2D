@@ -13,7 +13,6 @@
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/viewport_texture.hpp>
 #include <godot_cpp/classes/world2d.hpp>
-#include <godot_cpp/core/print_string.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
 #include "core/config/project_settings.h"
@@ -21,7 +20,6 @@ using namespace godot;
 #include "core/io/json.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_uid.h"
-#include "core/string/print_string.h"
 #include "scene/animation/animation_player.h"
 #include "scene/main/scene_tree.h"
 #include "scene/main/viewport.h"
@@ -233,7 +231,6 @@ void Live2DModelInstance::_setup_textures(const String &p_model_dir) {
 			continue;
 		}
 
-		user_model->bind_texture_rid(i, tex->get_rid());
 		textures.push_back(tex);
 	}
 }
@@ -400,7 +397,16 @@ void Live2DModelInstance::set_model_entry(const String &p_model_entry_path) {
 
 	_update_model_properties();
 
-	user_model->create_renderer();
+	Live2DRenderContext render_context;
+	render_context.base_rid = get_canvas_item();
+	render_context.mask_viewport_rid = mask_viewport->get_viewport_rid();
+	render_context.mask_container_rid = mask_container->get_canvas_item();
+	for (const Ref<Texture2D> &tex : textures) {
+		render_context.texture_rids.push_back(tex->get_rid());
+	}
+
+	user_model->create_renderer(render_context);
+
 	set_process(true);
 
 	model_entry_path = path;
@@ -508,7 +514,6 @@ Live2DModelInstance::Live2DModelInstance(bool p_is_importing) {
 	is_importing = p_is_importing;
 
 	user_model = memnew(Live2DUserModel);
-	user_model->bind_base_rid(get_canvas_item());
 
 	mask_viewport = memnew(SubViewport);
 	mask_viewport->set_name("Live2DMaskViewport");
@@ -526,8 +531,6 @@ Live2DModelInstance::Live2DModelInstance(bool p_is_importing) {
 	mask_container = memnew(Node2D);
 	mask_container->set_name("MaskCanvas");
 	mask_viewport->add_child(mask_container);
-
-	user_model->bind_mask_targets(mask_viewport->get_viewport_rid(), mask_container->get_canvas_item());
 }
 
 Live2DModelInstance::~Live2DModelInstance() {

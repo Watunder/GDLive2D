@@ -3,11 +3,9 @@
 #ifdef GDEXTENSION
 #include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/templates/vector.hpp>
-#include <godot_cpp/variant/packed_float32_array.hpp>
 #include <godot_cpp/variant/variant.hpp>
 using namespace godot;
 #elif defined(GODOT_MODULE)
-#include "core/object/ref_counted.h"
 #include "core/templates/vector.h"
 #include "core/variant/variant.h"
 #include "scene/resources/material.h"
@@ -18,9 +16,22 @@ using namespace godot;
 #include <Model/CubismModel.hpp>
 #include <Rendering/CubismRenderer.hpp>
 
-class Live2DUserModel;
 class Live2DClippingContext;
 class Live2DClippingManager;
+
+struct Live2DRenderContext {
+	RID base_rid;
+	RID mask_viewport_rid;
+	RID mask_container_rid;
+	Vector<RID> texture_rids;
+
+	RID get_texture_rid(int32_t p_index) const {
+		if (p_index < 0 || p_index >= static_cast<int32_t>(texture_rids.size())) {
+			return RID();
+		}
+		return texture_rids[p_index];
+	}
+};
 
 class Live2DRenderer {
 public:
@@ -29,7 +40,6 @@ public:
 	struct DrawableRenderData {
 		int32_t drawable_index = -1;
 		bool masked = false;
-		Live2DClippingContext *mask_context = nullptr;
 
 		RID canvas_item_rid;
 		RID backbuffer_copy_rid;
@@ -49,7 +59,7 @@ public:
 	};
 
 private:
-	Live2DUserModel *user_model = nullptr;
+	Live2DRenderContext render_context;
 
 	PackedFloat32Array mvp_matrix;
 
@@ -58,40 +68,36 @@ private:
 	Live2DClippingManager *clipping_manager = nullptr;
 	Vector<MaskSourceRenderData> mask_sources;
 
-	RID mask_viewport_rid;
-	RID mask_container_rid;
 	RID mask_background_rid;
 	RID mask_texture_rid;
 
 	bool _has_mask_target() const;
 
-	void _build_masks();
 	void _release_masks();
+	void _build_masks(Csm::CubismModel &p_model);
+
 	void _update_mask_texture();
 
-	void _build_mask_target();
 	void _release_mask_target();
-	void _update_mask_target();
+	void _build_mask_target(Csm::CubismModel &p_model);
+	void _update_mask_target(Csm::CubismModel &p_model);
 
-	void _build_drawables();
 	void _release_drawables();
+	void _build_drawables(Csm::CubismModel &p_model);
 
-	void _render_drawable(int32_t p_drawable_index);
+	void _render_drawable(Csm::CubismModel &p_model, int32_t p_drawable_index);
 
 public:
-	Live2DRenderer(uint32_t p_width, uint32_t p_height);
+	Live2DRenderer(const Live2DRenderContext &p_context);
 	virtual ~Live2DRenderer();
 
-	void initialize(Live2DUserModel *p_user_model);
-	void initialize(Live2DUserModel *p_user_model, int32_t p_mask_buffer_count);
+	void initialize(Csm::CubismModel &p_model, int32_t p_mask_buffer_count = 1);
 
-	void bind_mask_targets(const RID &p_viewport_rid, const RID &p_mask_container_rid);
+	void update_masks(Csm::CubismModel &p_model);
 
-	void update_masks();
-
-	void update_model();
+	void update_model(Csm::CubismModel &p_model);
 
 	void set_mvp_matrix(Csm::CubismMatrix44 *p_matrix);
 
-	void draw_model();
+	void draw_model(Csm::CubismModel &p_model);
 };

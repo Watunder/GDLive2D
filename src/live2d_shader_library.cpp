@@ -1,12 +1,5 @@
 #include "live2d_shader_library.h"
 
-#ifdef GDEXTENSION
-#include <godot_cpp/core/error_macros.hpp>
-using namespace godot;
-#elif defined(GODOT_MODULE)
-#include "core/error/error_macros.h"
-#endif
-
 namespace {
 static const char *LIVE2D_SHADER_SOURCE = R"(
 shader_type canvas_item;
