@@ -78,6 +78,8 @@ public:
 
 	void create_renderer(const Live2DRenderContext &p_context);
 
+	void update_mask_size(const Vector2i &p_size);
+
 	Csm::CubismModelSettingJson *get_setting_json() const;
 	void load_setting_json(const String &p_json_path);
 

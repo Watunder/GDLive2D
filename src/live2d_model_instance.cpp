@@ -175,7 +175,11 @@ void Live2DModelInstance::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_moc_file"), &Live2DModelInstance::get_moc_file);
 	ClassDB::bind_method(D_METHOD("get_textures"), &Live2DModelInstance::get_textures);
 
+	ClassDB::bind_method(D_METHOD("set_mask_size", "size"), &Live2DModelInstance::set_mask_size);
+	ClassDB::bind_method(D_METHOD("get_mask_size"), &Live2DModelInstance::get_mask_size);
+
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "model_entry", PROPERTY_HINT_FILE, "*.model3.json"), "set_model_entry", "get_model_entry");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2I, "mask_size", PROPERTY_HINT_NONE, "suffix:px"), "set_mask_size", "get_mask_size");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "moc_file", PROPERTY_HINT_RESOURCE_TYPE, "Live2DMocFile", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_READ_ONLY), "", "get_moc_file");
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "textures", PROPERTY_HINT_ARRAY_TYPE, "Texture2D", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_READ_ONLY), "", "get_textures");
 }
@@ -406,6 +410,7 @@ void Live2DModelInstance::set_model_entry(const String &p_model_entry_path) {
 	}
 
 	user_model->create_renderer(render_context);
+	user_model->update_mask_size(mask_viewport->get_size());
 
 	set_process(true);
 
@@ -414,6 +419,18 @@ void Live2DModelInstance::set_model_entry(const String &p_model_entry_path) {
 
 String Live2DModelInstance::get_model_entry() const {
 	return model_entry_path;
+}
+
+void Live2DModelInstance::set_mask_size(const Vector2i &p_size) {
+	ERR_FAIL_COND(p_size.x <= 0 || p_size.y <= 0);
+	mask_viewport->set_size(p_size);
+
+	ERR_FAIL_COND(!user_model);
+	user_model->update_mask_size(p_size);
+}
+
+Vector2i Live2DModelInstance::get_mask_size() const {
+	return mask_viewport->get_size();
 }
 
 Ref<Live2DMocFile> Live2DModelInstance::get_moc_file() const {
@@ -517,7 +534,7 @@ Live2DModelInstance::Live2DModelInstance(bool p_is_importing) {
 
 	mask_viewport = memnew(SubViewport);
 	mask_viewport->set_name("Live2DMaskViewport");
-	mask_viewport->set_size(Vector2i(Live2DRenderer::MASK_TARGET_SIZE, Live2DRenderer::MASK_TARGET_SIZE));
+	mask_viewport->set_size(Vector2i(Live2DRenderer::DEFAULT_MASK_SIZE, Live2DRenderer::DEFAULT_MASK_SIZE));
 	mask_viewport->set_update_mode(SubViewport::UPDATE_ALWAYS);
 	mask_viewport->set_clear_mode(SubViewport::CLEAR_MODE_ALWAYS);
 	mask_viewport->set_transparent_background(false);
