@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef GDEXTENSION
+#include <godot_cpp/classes/shader.hpp>
 #include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/templates/vector.hpp>
 #include <godot_cpp/variant/variant.hpp>
@@ -45,7 +46,6 @@ public:
 		RID backbuffer_copy_rid;
 		RID texture_rid;
 		RID mesh_rid;
-		Ref<ShaderMaterial> material;
 	};
 
 	struct MaskSourceRenderData {
@@ -55,7 +55,6 @@ public:
 		RID canvas_item_rid;
 		RID texture_rid;
 		RID mesh_rid;
-		Ref<ShaderMaterial> material;
 	};
 
 private:
@@ -70,6 +69,14 @@ private:
 
 	RID mask_background_rid;
 	RID mask_texture_rid;
+
+	struct SharedShaderMaterial {
+		Ref<ShaderMaterial> material;
+		bool masked = false;
+	};
+	Vector<SharedShaderMaterial> shared_materials;
+
+	Ref<ShaderMaterial> _get_material(const Ref<Shader> &p_shader, bool p_masked);
 
 	bool _has_mask_target() const;
 

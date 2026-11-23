@@ -14,8 +14,8 @@ render_mode blend_disabled;
 render_mode blend_mix;
 #endif
 
-uniform vec4 multiply_color = vec4(1.0, 1.0, 1.0, 1.0);
-uniform vec4 screen_color = vec4(0.0, 0.0, 0.0, 0.0);
+instance uniform vec4 multiply_color;
+instance uniform vec4 screen_color;
 
 #ifdef CUSTOM_BLEND_MODE
 uniform sampler2D blend_texture : hint_screen_texture, repeat_disable, filter_nearest;
@@ -23,10 +23,10 @@ uniform sampler2D blend_texture : hint_screen_texture, repeat_disable, filter_ne
 
 #ifdef MASKED
 uniform sampler2D mask_texture : filter_linear, repeat_disable;
-uniform vec4 mask_channel = vec4(1.0, 1.0, 1.0, 1.0);
-uniform float mask_inverted = 0.0;
-uniform vec4 clip_row0 = vec4(1.0, 0.0, 0.0, 0.0);
-uniform vec4 clip_row1 = vec4(0.0, 1.0, 0.0, 0.0);
+instance uniform vec4 mask_channel;
+instance uniform bool mask_inverted;
+instance uniform vec4 clip_row0;
+instance uniform vec4 clip_row1;
 varying vec2 live2d_mask_uv;
 #endif
 
@@ -45,7 +45,7 @@ void vertex() {
 float live2d_mask_value() {
     vec4 mask_color = texture(mask_texture, live2d_mask_uv);
     float value = dot(vec4(1.0) - mask_color, mask_channel);
-    return mask_inverted > 0.5 ? 1.0 - value : value;
+    return mask_inverted ? 1.0 - value : value;
 }
 #endif
 
@@ -293,9 +293,9 @@ static const char *LIVE2D_SETUP_MASK_SOURCE = R"(
 shader_type canvas_item;
 render_mode blend_mul;
 
-uniform vec4 channel_flag = vec4(1.0, 0.0, 0.0, 0.0);
-uniform vec4 layout_bounds = vec4(0.0, 0.0, 1.0, 1.0);
-uniform vec2 mask_size = vec2(256.0, 256.0);
+instance uniform vec4 channel_flag;
+instance uniform vec4 layout_bounds;
+instance uniform vec2 mask_size;
 
 void fragment() {
     vec2 position = VERTEX / mask_size;
@@ -346,18 +346,22 @@ Ref<Shader> Live2DShaderLibrary::shaders[Live2DShaderLibrary::SHADER_COUNT];
 
 Ref<Shader> Live2DShaderLibrary::setup_mask_shader;
 
-Ref<Shader> Live2DShaderLibrary::_get_shader(int32_t p_color_blend, int32_t p_alpha_blend, bool p_masked) {
-	if (p_color_blend < 0 || p_color_blend >= COLOR_BLEND_COUNT) {
-		p_color_blend = Live2D::Cubism::Core::csmColorBlendType_Normal;
+int32_t Live2DShaderLibrary::_resolve_shader_index(int32_t &r_color_blend, int32_t &r_alpha_blend, bool p_masked) {
+	if (r_color_blend < 0 || r_color_blend >= COLOR_BLEND_COUNT) {
+		r_color_blend = Live2D::Cubism::Core::csmColorBlendType_Normal;
 	}
-	if (p_alpha_blend < 0 || p_alpha_blend >= ALPHA_BLEND_COUNT) {
-		p_alpha_blend = Live2D::Cubism::Core::csmAlphaBlendType_Over;
+	if (r_alpha_blend < 0 || r_alpha_blend >= ALPHA_BLEND_COUNT) {
+		r_alpha_blend = Live2D::Cubism::Core::csmAlphaBlendType_Over;
 	}
-	if (!_is_custom_blend(p_color_blend, p_alpha_blend)) {
-		p_alpha_blend = Live2D::Cubism::Core::csmAlphaBlendType_Over;
+	if (!_is_custom_blend(r_color_blend, r_alpha_blend)) {
+		r_alpha_blend = Live2D::Cubism::Core::csmAlphaBlendType_Over;
 	}
+	return (r_color_blend * ALPHA_BLEND_COUNT + r_alpha_blend) * 2 + (p_masked ? 1 : 0);
+}
 
-	const int32_t index = (p_color_blend * ALPHA_BLEND_COUNT + p_alpha_blend) * 2 + (p_masked ? 1 : 0);
+Ref<Shader> Live2DShaderLibrary::_get_shader(int32_t p_color_blend, int32_t p_alpha_blend, bool p_masked) {
+	const int32_t index = _resolve_shader_index(p_color_blend, p_alpha_blend, p_masked);
+
 	Ref<Shader> &shader = shaders[index];
 	if (shader.is_null()) {
 		shader = _make_shader(_variant_defines(p_color_blend, p_alpha_blend, p_masked), LIVE2D_SHADER_SOURCE);
@@ -365,27 +369,15 @@ Ref<Shader> Live2DShaderLibrary::_get_shader(int32_t p_color_blend, int32_t p_al
 	return shader;
 }
 
-Ref<ShaderMaterial> Live2DShaderLibrary::create_material(const Csm::csmBlendMode &p_blend_mode, bool p_masked, bool p_inverted) {
-	Ref<ShaderMaterial> material;
-	material.instantiate();
-	material->set_shader(_get_shader(p_blend_mode.GetColorBlendType(), p_blend_mode.GetAlphaBlendType(), p_masked));
-
-	if (p_masked) {
-		material->set_shader_parameter("mask_inverted", p_inverted ? 1.0f : 0.0f);
-	}
-
-	return material;
+Ref<Shader> Live2DShaderLibrary::get_drawable_shader(const Csm::csmBlendMode &p_blend_mode, bool p_masked) {
+	return _get_shader(p_blend_mode.GetColorBlendType(), p_blend_mode.GetAlphaBlendType(), p_masked);
 }
 
-Ref<ShaderMaterial> Live2DShaderLibrary::create_mask_material() {
+Ref<Shader> Live2DShaderLibrary::get_mask_shader() {
 	if (setup_mask_shader.is_null()) {
 		setup_mask_shader = _make_shader("", LIVE2D_SETUP_MASK_SOURCE);
 	}
-
-	Ref<ShaderMaterial> material;
-	material.instantiate();
-	material->set_shader(setup_mask_shader);
-	return material;
+	return setup_mask_shader;
 }
 
 bool Live2DShaderLibrary::requires_backbuffer(const Csm::csmBlendMode &p_blend_mode) {

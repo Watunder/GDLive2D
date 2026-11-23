@@ -153,6 +153,24 @@ static void _free_rid(const RID &p_rid) {
 #endif
 }
 
+Ref<ShaderMaterial> Live2DRenderer::_get_material(const Ref<Shader> &p_shader, bool p_masked) {
+	for (int32_t i = 0; i < shared_materials.size(); ++i) {
+		const SharedShaderMaterial &sm = shared_materials.get(i);
+		if (sm.material->get_shader() == p_shader) {
+			return sm.material;
+		}
+	}
+
+	SharedShaderMaterial new_sm;
+	new_sm.material.instantiate();
+	new_sm.material->set_shader(p_shader);
+	new_sm.masked = p_masked;
+
+	shared_materials.push_back(new_sm);
+
+	return new_sm.material;
+}
+
 bool Live2DRenderer::_has_mask_target() const {
 	ERR_FAIL_COND_V(!render_context.mask_viewport_rid.is_valid(), false);
 	ERR_FAIL_COND_V(!render_context.mask_container_rid.is_valid(), false);
@@ -188,10 +206,10 @@ void Live2DRenderer::_update_mask_texture() {
 	}
 
 	mask_texture_rid = texture_rid;
-	for (int32_t i = 0; i < drawables.size(); ++i) {
-		DrawableRenderData &d = drawables.write[i];
-		if (d.masked && d.material.is_valid()) {
-			d.material->set_shader_parameter("mask_texture", mask_texture_rid);
+	for (int32_t i = 0; i < shared_materials.size(); ++i) {
+		const SharedShaderMaterial &sm = shared_materials.get(i);
+		if (sm.masked) {
+			sm.material->set_shader_parameter("mask_texture", mask_texture_rid);
 		}
 	}
 }
@@ -225,6 +243,8 @@ void Live2DRenderer::_build_mask_target(Csm::CubismModel &p_model) {
 
 	RenderingServer *rs = RenderingServer::get_singleton();
 
+	const Ref<ShaderMaterial> mask_material = _get_material(Live2DShaderLibrary::get_mask_shader(), false);
+
 	mask_background_rid = rs->canvas_item_create();
 	rs->canvas_item_set_parent(mask_background_rid, render_context.mask_container_rid);
 	rs->canvas_item_set_draw_index(mask_background_rid, 0);
@@ -251,9 +271,7 @@ void Live2DRenderer::_build_mask_target(Csm::CubismModel &p_model) {
 			RID canvas_item_rid = rs->canvas_item_create();
 			rs->canvas_item_set_parent(canvas_item_rid, render_context.mask_container_rid);
 			rs->canvas_item_set_draw_index(canvas_item_rid, draw_index++);
-
-			Ref<ShaderMaterial> material = Live2DShaderLibrary::create_mask_material();
-			rs->canvas_item_set_material(canvas_item_rid, material->get_rid());
+			rs->canvas_item_set_material(canvas_item_rid, mask_material->get_rid());
 
 			MaskSourceRenderData data;
 			data.context_index = ci;
@@ -261,7 +279,6 @@ void Live2DRenderer::_build_mask_target(Csm::CubismModel &p_model) {
 			data.canvas_item_rid = canvas_item_rid;
 			data.texture_rid = render_context.get_texture_rid(p_model.GetDrawableTextureIndex(source_index));
 			data.mesh_rid = mesh_rid;
-			data.material = material;
 			mask_sources.push_back(data);
 		}
 	}
@@ -333,9 +350,9 @@ void Live2DRenderer::_update_mask_target(Csm::CubismModel &p_model) {
 		rs->mesh_surface_update_vertex_region(source.mesh_rid, 0, 0, update_buffer);
 		rs->mesh_set_custom_aabb(source.mesh_rid, AABB(Vector3(0, 0, 0), Vector3(MASK_TARGET_SIZE, MASK_TARGET_SIZE, 0)));
 
-		source.material->set_shader_parameter("channel_flag", Color(channel->R, channel->G, channel->B, channel->A));
-		source.material->set_shader_parameter("layout_bounds", Vector4(layout->X, layout->Y, layout->X + layout->Width, layout->Y + layout->Height));
-		source.material->set_shader_parameter("mask_size", Vector2(MASK_TARGET_SIZE, MASK_TARGET_SIZE));
+		rs->canvas_item_set_instance_shader_parameter(source.canvas_item_rid, "channel_flag", Vector4(channel->R, channel->G, channel->B, channel->A));
+		rs->canvas_item_set_instance_shader_parameter(source.canvas_item_rid, "layout_bounds", Vector4(layout->X, layout->Y, layout->X + layout->Width, layout->Y + layout->Height));
+		rs->canvas_item_set_instance_shader_parameter(source.canvas_item_rid, "mask_size", Vector2(MASK_TARGET_SIZE, MASK_TARGET_SIZE));
 
 		rs->canvas_item_set_visible(source.canvas_item_rid, true);
 		rs->canvas_item_clear(source.canvas_item_rid);
@@ -397,9 +414,8 @@ void Live2DRenderer::_build_drawables(Csm::CubismModel &p_model) {
 
 		const Csm::csmBlendMode blend_mode = p_model.GetDrawableBlendModeType(di);
 		const bool masked = is_using_masking && clipping_manager->get_context_for_drawable(di) != nullptr;
-		const bool inverted = masked && p_model.GetDrawableInvertedMask(di);
 
-		Ref<ShaderMaterial> material = Live2DShaderLibrary::create_material(blend_mode, masked, inverted);
+		Ref<ShaderMaterial> material = _get_material(Live2DShaderLibrary::get_drawable_shader(blend_mode, masked), masked);
 		rs->canvas_item_set_material(canvas_item_rid, material->get_rid());
 
 		RID backbuffer_copy_rid;
@@ -417,7 +433,6 @@ void Live2DRenderer::_build_drawables(Csm::CubismModel &p_model) {
 		data.backbuffer_copy_rid = backbuffer_copy_rid;
 		data.texture_rid = render_context.get_texture_rid(p_model.GetDrawableTextureIndex(di));
 		data.mesh_rid = mesh_rid;
-		data.material = material;
 		drawables.write[di] = data;
 	}
 }
@@ -501,17 +516,14 @@ void Live2DRenderer::_render_drawable(Csm::CubismModel &p_model, int32_t drawabl
 	rs->canvas_item_clear(ci);
 	rs->canvas_item_add_mesh(ci, d.mesh_rid, Transform2D(), Color(1, 1, 1, 1), d.texture_rid);
 
-	const float opacity = p_model.GetDrawableOpacity(di) * p_model.GetModelOpacity();
 	const Csm::CubismModelMultiplyAndScreenColor &multiply_and_screen_color = p_model.GetOverrideMultiplyAndScreenColor();
 	const Csm::Rendering::CubismRenderer::CubismTextureColor multiply_color = multiply_and_screen_color.GetDrawableMultiplyColor(di);
 	const Csm::Rendering::CubismRenderer::CubismTextureColor screen_color = multiply_and_screen_color.GetDrawableScreenColor(di);
 
-	if (d.material.is_valid()) {
-		d.material->set_shader_parameter("multiply_color", Color(multiply_color.R, multiply_color.G, multiply_color.B, multiply_color.A));
-		d.material->set_shader_parameter("screen_color", Color(screen_color.R, screen_color.G, screen_color.B, screen_color.A));
-	}
+	rs->canvas_item_set_instance_shader_parameter(ci, "multiply_color", Vector4(multiply_color.R, multiply_color.G, multiply_color.B, multiply_color.A));
+	rs->canvas_item_set_instance_shader_parameter(ci, "screen_color", Vector4(screen_color.R, screen_color.G, screen_color.B, screen_color.A));
 
-	if (d.masked && d.material.is_valid()) {
+	if (d.masked) {
 		Csm::CubismMatrix44 mvp;
 		mvp.SetMatrix(mvp_matrix.ptrw());
 		Csm::CubismMatrix44 inverse = mvp.GetInvert();
@@ -526,14 +538,13 @@ void Live2DRenderer::_render_drawable(Csm::CubismModel &p_model, int32_t drawabl
 		}
 
 		const Csm::Rendering::CubismRenderer::CubismTextureColor *channel = clipping_manager->GetChannelFlagAsColor(mask_context->_layoutChannelIndex);
-		d.material->set_shader_parameter("mask_channel", Color(channel->R, channel->G, channel->B, channel->A));
-		d.material->set_shader_parameter("clip_row0", Vector4(clip[0], clip[4], clip[8], clip[12]));
-		d.material->set_shader_parameter("clip_row1", Vector4(clip[1], clip[5], clip[9], clip[13]));
-		if (mask_texture_rid.is_valid()) {
-			d.material->set_shader_parameter("mask_texture", mask_texture_rid);
-		}
+		rs->canvas_item_set_instance_shader_parameter(ci, "mask_channel", Vector4(channel->R, channel->G, channel->B, channel->A));
+		rs->canvas_item_set_instance_shader_parameter(ci, "mask_inverted", p_model.GetDrawableInvertedMask(di));
+		rs->canvas_item_set_instance_shader_parameter(ci, "clip_row0", Vector4(clip[0], clip[4], clip[8], clip[12]));
+		rs->canvas_item_set_instance_shader_parameter(ci, "clip_row1", Vector4(clip[1], clip[5], clip[9], clip[13]));
 	}
 
+	const float opacity = p_model.GetDrawableOpacity(di) * p_model.GetModelOpacity();
 	rs->canvas_item_set_modulate(ci, Color(1, 1, 1, CLAMP(opacity, 0.0f, 1.0f)));
 }
 
@@ -544,6 +555,7 @@ Live2DRenderer::Live2DRenderer(const Live2DRenderContext &p_context) :
 Live2DRenderer::~Live2DRenderer() {
 	_release_drawables();
 	_release_masks();
+	shared_materials.clear();
 
 	CSM_DELETE_SELF(Live2DClippingManager, clipping_manager);
 }
