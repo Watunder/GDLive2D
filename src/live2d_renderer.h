@@ -36,7 +36,7 @@ struct Live2DRenderContext {
 
 class Live2DRenderer {
 public:
-	static constexpr int32_t MASK_TARGET_SIZE = 256;
+	static constexpr int32_t DEFAULT_MASK_SIZE = 512;
 
 	struct DrawableRenderData {
 		int32_t drawable_index = -1;
@@ -99,6 +99,8 @@ public:
 	virtual ~Live2DRenderer();
 
 	void initialize(Csm::CubismModel &p_model, int32_t p_mask_buffer_count = 1);
+
+	void update_mask_size(const Vector2i &p_size);
 
 	void update_masks(Csm::CubismModel &p_model);
 

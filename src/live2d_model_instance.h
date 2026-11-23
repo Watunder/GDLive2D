@@ -64,6 +64,9 @@ public:
 	void set_model_entry(const String &p_model_entry_path);
 	String get_model_entry() const;
 
+	void set_mask_size(const Vector2i &p_size);
+	Vector2i get_mask_size() const;
+
 	Ref<Live2DMocFile> get_moc_file() const;
 	TypedArray<Texture2D> get_textures() const;
 

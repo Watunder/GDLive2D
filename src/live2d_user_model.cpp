@@ -123,6 +123,11 @@ void Live2DUserModel::create_renderer(const Live2DRenderContext &p_context) {
 	renderer->update_model(*model);
 }
 
+void Live2DUserModel::update_mask_size(const Vector2i &p_size) {
+	ERR_FAIL_COND(!renderer);
+	renderer->update_mask_size(p_size);
+}
+
 Csm::CubismModelSettingJson *Live2DUserModel::get_setting_json() const {
 	return setting_json;
 }

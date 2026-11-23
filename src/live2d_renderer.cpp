@@ -241,14 +241,16 @@ void Live2DRenderer::_build_mask_target(Csm::CubismModel &p_model) {
 		return;
 	}
 
-	RenderingServer *rs = RenderingServer::get_singleton();
-
 	const Ref<ShaderMaterial> mask_material = _get_material(Live2DShaderLibrary::get_mask_shader(), false);
+
+	const Csm::CubismVector2 mask_size = clipping_manager->GetClippingMaskBufferSize();
+
+	RenderingServer *rs = RenderingServer::get_singleton();
 
 	mask_background_rid = rs->canvas_item_create();
 	rs->canvas_item_set_parent(mask_background_rid, render_context.mask_container_rid);
 	rs->canvas_item_set_draw_index(mask_background_rid, 0);
-	rs->canvas_item_add_rect(mask_background_rid, Rect2(0, 0, MASK_TARGET_SIZE, MASK_TARGET_SIZE), Color(1, 1, 1, 1));
+	rs->canvas_item_add_rect(mask_background_rid, Rect2(0, 0, mask_size.X, mask_size.Y), Color(1, 1, 1, 1));
 
 	const int32_t context_count = clipping_manager->get_mask_context_count();
 	int32_t draw_index = 1;
@@ -308,6 +310,8 @@ void Live2DRenderer::_update_mask_target(Csm::CubismModel &p_model) {
 
 	clipping_manager->SetupLayoutBounds(using_count);
 
+	const Csm::CubismVector2 mask_size = clipping_manager->GetClippingMaskBufferSize();
+
 	int32_t prepared_context = -1;
 	for (int32_t i = 0; i < mask_sources.size(); ++i) {
 		MaskSourceRenderData &source = mask_sources.write[i];
@@ -344,15 +348,15 @@ void Live2DRenderer::_update_mask_target(Csm::CubismModel &p_model) {
 			const Csm::csmFloat32 vy = vertices[Csm::Constant::VertexOffset + vi * Csm::Constant::VertexStep + 1];
 
 			_encode_position(update_buffer, vi,
-					((vx - bounds.X) * scale_x + layout->X) * MASK_TARGET_SIZE,
-					((vy - bounds.Y) * scale_y + layout->Y) * MASK_TARGET_SIZE);
+					((vx - bounds.X) * scale_x + layout->X) * mask_size.X,
+					((vy - bounds.Y) * scale_y + layout->Y) * mask_size.Y);
 		}
 		rs->mesh_surface_update_vertex_region(source.mesh_rid, 0, 0, update_buffer);
-		rs->mesh_set_custom_aabb(source.mesh_rid, AABB(Vector3(0, 0, 0), Vector3(MASK_TARGET_SIZE, MASK_TARGET_SIZE, 0)));
+		rs->mesh_set_custom_aabb(source.mesh_rid, AABB(Vector3(0, 0, 0), Vector3(mask_size.X, mask_size.Y, 0)));
 
 		rs->canvas_item_set_instance_shader_parameter(source.canvas_item_rid, "channel_flag", Vector4(channel->R, channel->G, channel->B, channel->A));
 		rs->canvas_item_set_instance_shader_parameter(source.canvas_item_rid, "layout_bounds", Vector4(layout->X, layout->Y, layout->X + layout->Width, layout->Y + layout->Height));
-		rs->canvas_item_set_instance_shader_parameter(source.canvas_item_rid, "mask_size", Vector2(MASK_TARGET_SIZE, MASK_TARGET_SIZE));
+		rs->canvas_item_set_instance_shader_parameter(source.canvas_item_rid, "mask_size", Vector2(mask_size.X, mask_size.Y));
 
 		rs->canvas_item_set_visible(source.canvas_item_rid, true);
 		rs->canvas_item_clear(source.canvas_item_rid);
@@ -383,6 +387,7 @@ void Live2DRenderer::_build_drawables(Csm::CubismModel &p_model) {
 	_release_drawables();
 
 	ERR_FAIL_COND(!render_context.base_rid.is_valid());
+	ERR_FAIL_COND(!clipping_manager);
 
 	const Csm::csmInt32 drawable_count = p_model.GetDrawableCount();
 	if (drawable_count <= 0) {
@@ -565,10 +570,26 @@ void Live2DRenderer::initialize(Csm::CubismModel &p_model, int32_t p_mask_buffer
 	ERR_FAIL_COND(!clipping_manager);
 
 	clipping_manager->Initialize(p_model, p_mask_buffer_count, DrawableObjectType::DrawableObjectType_Drawable);
+	clipping_manager->SetClippingMaskBufferSize(DEFAULT_MASK_SIZE, DEFAULT_MASK_SIZE);
 
 	if (p_model.GetOffscreenCount() > 0) {
 		WARN_PRINT_ED("[GDLive2D] Offscreen drawing is not implemented.");
 	}
+}
+
+void Live2DRenderer::update_mask_size(const Vector2i &p_size) {
+	ERR_FAIL_COND(!mask_background_rid.is_valid());
+	ERR_FAIL_COND(!clipping_manager);
+
+	const Csm::CubismVector2 mask_size = clipping_manager->GetClippingMaskBufferSize();
+	if (p_size.x <= 0 || p_size.y <= 0 || p_size == Vector2i(mask_size.X, mask_size.Y)) {
+		return;
+	}
+	clipping_manager->SetClippingMaskBufferSize(p_size.x, p_size.y);
+
+	RenderingServer *rs = RenderingServer::get_singleton();
+	rs->canvas_item_clear(mask_background_rid);
+	rs->canvas_item_add_rect(mask_background_rid, Rect2(0, 0, p_size.x, p_size.y), Color(1, 1, 1, 1));
 }
 
 void Live2DRenderer::update_masks(Csm::CubismModel &p_model) {
